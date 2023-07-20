@@ -353,10 +353,6 @@ def calc_influence_single(model, train_loader, test_loader, test_id_num, gpu,
         influences.append(tmp_influence)
         end_time = time.time()
         display_progress("Calc. influence function: ", i, train_dataset_size, run_time=end_time-start_time)
-#         print("torch.cuda.memory_allocated: %fGB"%(torch.cuda.memory_allocated(0)/1024/1024/1024))
-#         print("torch.cuda.memory_reserved: %fGB"%(torch.cuda.memory_reserved(0)/1024/1024/1024))
-#         print("torch.cuda.max_memory_reserved: %fGB"%(torch.cuda.max_memory_reserved(0)/1024/1024/1024))
-#         print("---" * 20)
 
     harmful = np.argsort(influences)
     helpful = harmful[::-1]
@@ -468,7 +464,6 @@ def calc_img_wise(config, model, train_loader, test_loader):
 
     influences_path = outdir.joinpath(f"influence_results_{test_start_index}_"
                                       f"{test_sample_num}.json")
-    print("path:", influences_path)
     influences = {}
     # Main loop for calculating the influence function one test sample per
     # iteration.
@@ -503,13 +498,14 @@ def calc_img_wise(config, model, train_loader, test_loader):
         # influences[str(i)]['influence'] = infl
         influences[str(i)]['test_data'] = test_loader.dataset.list_data_dict[i]
         indep_index = sorted(range(len(infl)), key=lambda i: abs(infl[i]))[:100]
-        influences[str(i)]['helpful_infl'] = infl[:100]
-        influences[str(i)]['harmful_infl'] = infl[len(infl) - 100:][-1]
-        influences[str(i)]['indep_infl'] = [infl[x] for x in indep_index]
-        influences[str(i)]['helpful'] = helpful[:100]
-        influences[str(i)]['harmful'] = harmful[:100]
+        helpful = helpful[:100]
+        harmful = harmful[:100]
+        influences[str(i)]['helpful'] = helpful
+        influences[str(i)]['harmful'] = harmful
         influences[str(i)]['indep'] = indep_index
-        # print(influences)
+        influences[str(i)]['indep_infl'] = [infl[x] for x in indep_index]
+        influences[str(i)]['helpful_infl'] = [infl[x] for x in harmful]
+        influences[str(i)]['harmful_infl'] = [infl[x] for x in helpful]
 
        
         if i == 0:
@@ -520,6 +516,7 @@ def calc_img_wise(config, model, train_loader, test_loader):
         display_progress("Test samples processed: ", j, test_dataset_iter_len, new_line=True, run_time=end_time-start_time)
         print("\n\n" + "---" * 20 + "\n\n")
 
+    print("path:", influences_path)
 
     return influences, harmful, helpful
 

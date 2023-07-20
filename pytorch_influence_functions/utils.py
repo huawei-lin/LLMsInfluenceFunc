@@ -99,15 +99,25 @@ def display_progress(text, current_step, last_step, enabled=True,
         if text not in run_time_records.keys():
             run_time_records[text] = 0
         run_time_records[text] += run_time
-        est_time = int(run_time_records[text]/current_step * (last_step - current_step))
-        est_time_str = str(datetime.timedelta(seconds=est_time))
-        bar += f"  {est_time_str}"
+        if current_step < last_step - 1:
+            est_time = int(run_time_records[text]/current_step * (last_step - current_step))
+            est_time_str = str(datetime.timedelta(seconds=est_time))
+            bar += f"  {est_time_str}"
+
+    if current_step == last_step - 1:
+        total_time = int(run_time_records[text])
+        total_time_str = str(datetime.timedelta(seconds=total_time))
+        bar += f"  {total_time_str}"
 
     if current_step < last_step - 1 and new_line == False:
         # Erase to end of line and print
         sys.stdout.write("\033[K" + bar + "\r")
     else:
         sys.stdout.write("\033[K" + bar + "\n")
+
+    if current_step == last_step - 1:
+        run_time_records[text] = 0
+
 
     sys.stdout.flush()
 

@@ -3,7 +3,6 @@
 import torch
 from torch.autograd import grad
 from pytorch_influence_functions.utils import display_progress
-import gc
 
 
 def s_test(z_test, t_test, input_len, model, z_loader, gpu=-1, damp=0.01, scale=25.0,
@@ -40,23 +39,18 @@ def s_test(z_test, t_test, input_len, model, z_loader, gpu=-1, damp=0.01, scale=
         # TODO: do x, t really have to be chosen RANDOMLY from the train set?
         #########################
         for x, t, input_len in z_loader:
-            if t.dim() > 1:
-                t = t[:, input_len]
             if gpu >= 0:
                 x, t = x.cuda(), t.cuda()
             y = model(x)
             y = y.logits
-            y = y[:,input_len - 1]
             loss = calc_loss(y, t)
             params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
             params = params[::20]
-            # print("params len:", len(params))
             hv = hvp(loss, params, h_estimate)
             # Recursively caclulate h_estimate
             h_estimate = [
                 _v + (1 - damp) * _h_e - _hv / scale
                 for _v, _h_e, _hv in zip(v, h_estimate, hv)]
-#             h_estimate = [10 for _ in range(len(v))]
             break
         display_progress("Calc. s_test recursions: ", i, recursion_depth)
     return h_estimate
@@ -71,19 +65,10 @@ def calc_loss(y, t):
 
     Returns:
         loss: scalar, the loss"""
-    ####################
-    # if dim == [0, 1, 3] then dim=0; else dim=1
-    ####################
-    # y = torch.nn.functional.log_softmax(y, dim=0)
-    if y.dim() > 2:
-        y = torch.squeeze(y, 1)
-    if t.dim() > 1:
-        t = torch.squeeze(t, 1)
-    y = torch.nn.functional.log_softmax(y)
-    # print("y:", y.shape, "t:", t.shape)
-    loss = torch.nn.functional.nll_loss(
-        y, t, weight=None, reduction='mean')
-    # print("finish nll_loss y:", y.shape, "t:", t.shape)
+    y = y.reshape(-1, 32001)
+    t = t.reshape(-1)
+
+    loss = torch.nn.functional.cross_entropy(y, t)
     return loss
 
 
@@ -103,27 +88,14 @@ def grad_z(z, t, input_len, model, gpu=-1):
             from model parameters to loss"""
     model.eval()
     # initialize
-    if t.dim() > 1:
-        t = t[:, input_len]
     if gpu >= 0:
         z, t = z.cuda(), t.cuda()
-    # print(z.shape, t.shape)
     y = model(z)
-    # z = z.detach().cpu()
     y = y.logits
-    # print("pred:", torch.argmax(y[:, input_len - 1]))
-    y = y[:, input_len - 1]
-    if  t == -1:
-        t = torch.argmax(y, 1)
-        # t = torch.unsqueeze(t, 0)
-    # print(z.shape, t.shape)
-    # print(t)
-    # print(y.get_device(), t.get_device())
     loss = calc_loss(y, t)
     # Compute sum of gradients from model parameters to loss
     params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2]
     params = params[::20]
-    # print("params len:", len(params))
     return list(grad(loss, params, create_graph=True))
     # return list(grad(loss, params))
 
