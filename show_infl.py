@@ -1,9 +1,9 @@
 import json
 
 
-result_path = "/home/hl3352/LLMs/LLMsInfluenceFunc/outdir/influence_results_0_1_2023-07-20-20-02-03.json"
-data_path = "/home/hl3352/LLMs/stanford_alpaca/training_data/all_data_single_turn_merge_alpaca.jsonl"
-data_path = "/home/hl3352/LLMs/stanford_alpaca/training_data/tiny_training.jsonl"
+result_path = "/home/hl3352/LLMs/LLMsInfluenceFunc/outdir/influence_results_200.json"
+# data_path = "/home/hl3352/LLMs/stanford_alpaca/training_data/all_data_single_turn_merge_alpaca.jsonl"
+data_path = "/home/hl3352/LLMs/stanford_alpaca/training_data/tiny_training_poison.jsonl"
 top_k = 10
 
 list_data_dict = None
