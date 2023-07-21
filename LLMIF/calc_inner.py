@@ -2,7 +2,7 @@
 
 import torch
 from torch.autograd import grad
-from pytorch_influence_functions.utils import display_progress
+from LLMIF.utils import display_progress
 import random
 
 

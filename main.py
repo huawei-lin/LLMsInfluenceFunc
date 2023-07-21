@@ -9,7 +9,7 @@ import copy
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 import transformers
-import pytorch_influence_functions as ptif
+import LLMIF as llmif
 
 IGNORE_INDEX = -100
 DEFAULT_PAD_TOKEN = "[PAD]"
@@ -90,7 +90,8 @@ class TrainingDataset(Dataset):
         logging.warning("Tokenizing inputs... This may take some time...")
         data_dict = preprocess(sources, targets, tokenizer)
 
-        self.sorted_index = sorted(range(len(data_dict["input_ids"])), key=lambda i: len(data_dict["input_ids"][i])) # sort by length
+        # self.sorted_index = sorted(range(len(data_dict["input_ids"])), key=lambda i: len(data_dict["input_ids"][i])) # sort by length
+        self.sorted_index = range(len(data_dict["input_ids"])) # random
 
         self.list_data_dict = [ list_data_dict[i] for i in self.sorted_index ]
         self.input_ids = [ data_dict["input_ids"][i] for i in self.sorted_index ]
@@ -155,14 +156,14 @@ def main():
     train_dataloader = DataLoader(training_dataset, batch_size=1, shuffle=True)
     test_dataloader = DataLoader(testing_dataset, batch_size=1, shuffle=False)
 
-    ptif.init_logging()
-    config = ptif.get_default_config()
+    llmif.init_logging()
+    config = llmif.get_default_config()
     config['gpu'] = 0
     config['r_averaging'] = 1
     config['recursion_depth'] = 1
     config['num_classes'] = 1 
 
-    influences, harmful, helpful = ptif.calc_img_wise(config, model, train_dataloader, test_dataloader)
+    influences, harmful, helpful = llmif.calc_img_wise(config, model, train_dataloader, test_dataloader)
     
 
 if __name__ == "__main__":

@@ -8,8 +8,8 @@ import copy
 import logging
 
 from pathlib import Path
-from pytorch_influence_functions.influence_function import s_test, grad_z
-from pytorch_influence_functions.utils import save_json, display_progress
+from LLMIF.calc_inner import s_test, grad_z
+from LLMIF.utils import save_json, display_progress
 
 IGNORE_INDEX = -100
 
