@@ -504,8 +504,8 @@ def calc_img_wise(config, model, train_loader, test_loader):
         influences[str(i)]['harmful'] = harmful
         influences[str(i)]['indep'] = indep_index
         influences[str(i)]['indep_infl'] = [infl[x] for x in indep_index]
-        influences[str(i)]['helpful_infl'] = [infl[x] for x in harmful]
-        influences[str(i)]['harmful_infl'] = [infl[x] for x in helpful]
+        influences[str(i)]['helpful_infl'] = [infl[x] for x in helpful]
+        influences[str(i)]['harmful_infl'] = [infl[x] for x in harmful]
 
        
         if i == 0:
