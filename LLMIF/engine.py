@@ -12,7 +12,7 @@ import logging
 import datetime
 import os
 
-MAX_CAPACITY = 100
+MAX_CAPACITY = 512
 
 
 def MP_run_calc_infulence_function(rank, world_size, config, model_path, train_loader, test_loader, test_id, mp_engine):
@@ -53,6 +53,12 @@ def MP_run_calc_infulence_function(rank, world_size, config, model_path, train_l
         
 
 def MP_run_get_result(config, mp_engine, test_loader, test_id, train_dataset_size):
+    outdir = Path(config['outdir'])
+    outdir.mkdir(exist_ok=True, parents=True)
+    influences_path = outdir.joinpath(f"influence_results_"
+                                      f"{train_dataset_size}.json")
+    influences_path = save_json({}, influences_path, unique_fn_if_exists=True)
+
     infl_list = [0 for _ in range(train_dataset_size)]
     for i in range(train_dataset_size):
 
@@ -60,29 +66,29 @@ def MP_run_get_result(config, mp_engine, test_loader, test_id, train_dataset_siz
         infl_list[real_id] = influence
         display_progress("Calc. influence function: ", i, train_dataset_size, cur_time=time.time())
 
-    harmful = np.argsort(infl_list).tolist()
-    helpful = harmful[::-1]
 
-    influences = {}
-    influences[str(test_id)] = {}
-    infl = [x.tolist() for x in infl_list]
-    # influences[str(test_id)]['influence'] = infl
-    influences[str(test_id)]['test_data'] = test_loader.dataset.list_data_dict[test_id]
-    indep_index = sorted(range(len(infl)), key=lambda i: abs(infl[i]))[:100]
-    helpful = helpful[:100]
-    harmful = harmful[:100]
-    influences[str(test_id)]['helpful'] = helpful
-    influences[str(test_id)]['harmful'] = harmful
-    influences[str(test_id)]['indep'] = indep_index
-    influences[str(test_id)]['indep_infl'] = [infl[x] for x in indep_index]
-    influences[str(test_id)]['helpful_infl'] = [infl[x] for x in helpful]
-    influences[str(test_id)]['harmful_infl'] = [infl[x] for x in harmful]
+        if (i + 1)%100 == 0 or i == train_dataset_size - 1:
+            harmful = np.argsort(infl_list).tolist()
+            helpful = harmful[::-1]
+        
+            influences = {}
+            influences[str(test_id)] = {}
+            infl = [ x.tolist() if not isinstance(x, int) else x for x in infl_list ]
+            # influences[str(test_id)]['influence'] = infl
+            influences[str(test_id)]['test_data'] = test_loader.dataset.list_data_dict[test_id]
+            indep_index = sorted(range(len(infl)), key=lambda i: abs(infl[i]))[:100]
+            helpful = helpful[:100]
+            harmful = harmful[:100]
+            influences[str(test_id)]['helpful'] = helpful
+            influences[str(test_id)]['harmful'] = harmful
+            influences[str(test_id)]['indep'] = indep_index
+            influences[str(test_id)]['indep_infl'] = [infl[x] for x in indep_index]
+            influences[str(test_id)]['helpful_infl'] = [infl[x] for x in helpful]
+            influences[str(test_id)]['harmful_infl'] = [infl[x] for x in harmful]
+            influences[str(test_id)]['finished_cnt'] = i + 1
+            influences_path = save_json(influences, influences_path, overwrite_if_exists=True)
 
-    outdir = Path(config['outdir'])
-    outdir.mkdir(exist_ok=True, parents=True)
-    influences_path = outdir.joinpath(f"influence_results_"
-                                      f"{train_dataset_size}.json")
-    influences_path = save_json(influences, influences_path)
+    influences_path = save_json(influences, influences_path, overwrite_if_exists=True)
     
 
 class MPEngine:

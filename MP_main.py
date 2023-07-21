@@ -17,8 +17,8 @@ import torch.multiprocessing as mp
 
 model_path = "/home/hl3352/LLMs/stanford_alpaca/exp_toxic/e5_toxic_llama/"
 # training_data_path = "/home/hl3352/LLMs/LLMsInfluenceFunc/data/tiny_training.jsonl"
-training_data_path = "/home/hl3352/LLMs/LLMsInfluenceFunc/data/tiny_training_poison.jsonl"
-# training_data_path = "/home/hl3352/LLMs/stanford_alpaca/training_data/all_data_single_turn_merge_alpaca.jsonl"
+# training_data_path = "/home/hl3352/LLMs/LLMsInfluenceFunc/data/tiny_training_poison.jsonl"
+training_data_path = "/home/hl3352/LLMs/stanford_alpaca/training_data/all_data_single_turn_merge_alpaca.jsonl"
 
 def main():
 
