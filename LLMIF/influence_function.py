@@ -170,7 +170,9 @@ def calc_influence_single(model, train_loader, test_loader, test_id_num, gpu,
     batch_size = 1
     for i in range(0, train_dataset_size, batch_size):
         z, t, input_len, real_index = train_loader.dataset[i:min(train_dataset_size, i + batch_size)]
-        z, t = pad_process(z, t)
+        # z, t = pad_process(z, t)
+        z = train_loader.collate_fn(z)
+        t = train_loader.collate_fn(t)
         start_time = time.time()
         if time_logging:
             time_a = datetime.datetime.now()
@@ -178,7 +180,7 @@ def calc_influence_single(model, train_loader, test_loader, test_id_num, gpu,
             z = torch.squeeze(z, 0)
         if t.dim() > 2:
             t = torch.squeeze(t, 0)
-        grad_z_vecs = grad_z(z, t, input_len, model, gpu=gpu)
+        grad_z_vecs = grad_z(z, t, input_len, model, gpu=gpu)[0]
         for real_idx, grad_z_vec in zip(real_index, grad_z_vecs):
             tmp_influence = -sum(
                 [
@@ -269,7 +271,7 @@ def get_dataset_sample_ids(num_samples, test_loader, num_classes=None,
     return sample_dict, sample_list
 
 
-def calc_img_wise(config, model, train_loader, test_loader):
+def calc_img_wise(config, model, train_loader, test_loader, gpu=-1):
     """Calculates the influence function one test point at a time. Calcualtes
     the `s_test` and `grad_z` values on the fly and discards them afterwards.
 
@@ -306,7 +308,7 @@ def calc_img_wise(config, model, train_loader, test_loader):
 
         start_time = time.time()
         influence, harmful, helpful, _ = calc_influence_single(
-            model, train_loader, test_loader, test_id_num=i, gpu=config['gpu'],
+            model, train_loader, test_loader, test_id_num=i, gpu=gpu,
             recursion_depth=config['recursion_depth'], r=config['r_averaging'])
         end_time = time.time()
 
@@ -341,49 +343,3 @@ def calc_img_wise(config, model, train_loader, test_loader):
 
     return influences, harmful, helpful
 
-
-def calc_grad_z(model, train_loader, save_pth=False, gpu=-1, start=0):
-    """Calculates grad_z and can save the output to files. One grad_z should
-    be computed for each training data sample.
-
-    Arguments:
-        model: pytorch model, for which s_test should be calculated
-        train_loader: pytorch dataloader, which can load the train data
-        save_pth: Path, path where to save the grad_z files if desired.
-            Omitting this argument will skip saving
-        gpu: int, device id to use for GPU, -1 for CPU (default)
-        start: int, index of the first test index to use. default is 0
-
-    Returns:
-        grad_zs: list of torch tensors, contains the grad_z tensors
-        save_pth: Path, path where grad_z files were saved to or
-            False if they were not saved."""
-    if save_pth and isinstance(save_pth, str):
-        save_pth = Path(save_pth)
-        if not os.path.exists(save_pth):
-            os.makedirs(save_pth)
-    if not save_pth:
-        logging.info("ATTENTION: Not saving grad_z files!")
-
-    grad_zs = []
-    for i in range(start, len(train_loader.dataset)):
-        start_time = time.time()
-        z, t, input_len, real_id = train_loader.dataset[i]
-        z = train_loader.collate_fn([z])
-        t = train_loader.collate_fn([t])
-        grad_z_vec = grad_z(z, t, input_len, model, gpu=gpu)[0]
-        if save_pth:
-            grad_z_vec = [g.cpu().numpy() for g in grad_z_vec]
-            # torch.save(grad_z_vec, save_pth.joinpath(f"{i}.grad_z"))
-        # else:
-            # grad_zs.append(grad_z_vec)
-        grad_zs.append(grad_z_vec)
-        end_time = time.time()
-        display_progress(
-            "Calc. grad_z: ", i-start, len(train_loader.dataset)-start, run_time=end_time-start_time)
-        if (i + 1)%10 == 0:
-            torch.save(grad_zs, save_pth.joinpath(f"{i}.grad_z"))
-            grad_zs = []
-
-
-    # return grad_zs, save_pth

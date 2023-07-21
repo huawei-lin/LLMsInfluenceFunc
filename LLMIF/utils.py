@@ -6,6 +6,7 @@ from datetime import datetime as dt
 import datetime
 
 run_time_records = {}
+start_time_records = {}
 def save_json(json_obj, json_path, append_if_exists=False,
               overwrite_if_exists=False, unique_fn_if_exists=True):
     """Saves a json file
@@ -58,7 +59,7 @@ def save_json(json_obj, json_path, append_if_exists=False,
 
 
 def display_progress(text, current_step, last_step, enabled=True,
-                     fix_zero_start=True, new_line=False, run_time=None):
+                     fix_zero_start=True, new_line=False, run_time=None, cur_time=None):
     """Draws a progress indicator on the screen with the text preceeding the
     progress
 
@@ -104,10 +105,25 @@ def display_progress(text, current_step, last_step, enabled=True,
             est_time_str = str(datetime.timedelta(seconds=est_time))
             bar += f"  {est_time_str}"
 
+    if cur_time is not None:
+        global start_time_records
+        if text not in start_time_records.keys():
+            start_time_records[text] = cur_time 
+        if current_step < last_step - 1 and current_step != 1:
+            est_time = int((cur_time - start_time_records[text])/(current_step - 1) * (last_step - current_step))
+            est_time_str = str(datetime.timedelta(seconds=est_time))
+            bar += f"  {est_time_str}"
+
     if current_step == last_step - 1:
-        total_time = int(run_time_records[text])
-        total_time_str = str(datetime.timedelta(seconds=total_time))
-        bar += f"  {total_time_str}"
+        if run_time is not None:
+            total_time = int(run_time_records[text])
+            total_time_str = str(datetime.timedelta(seconds=total_time))
+            bar += f"  {total_time_str}"
+
+        if cur_time is not None and last_step != 1:
+            total_time = int((cur_time - start_time_records[text])/(last_step - 1) * last_step)
+            total_time_str = str(datetime.timedelta(seconds=total_time))
+            bar += f"  {total_time_str}"
 
     if current_step < last_step - 1 and new_line == False:
         # Erase to end of line and print

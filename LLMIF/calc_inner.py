@@ -41,7 +41,7 @@ def s_test(z_test, t_test, input_len, model, z_loader, gpu=-1, damp=0.01, scale=
         #########################
         for x, t, _, _ in z_loader:
             if gpu >= 0:
-                x, t = x.cuda(), t.cuda()
+                x, t = x.cuda(gpu), t.cuda(gpu)
             y = model(x)
             y = y.logits
             loss = calc_loss(y, t)
@@ -93,7 +93,7 @@ def grad_z(z, t, input_len, model, gpu=-1):
     model.eval()
     # initialize
     if gpu >= 0:
-        z, t = z.cuda(), t.cuda()
+        z, t = z.cuda(gpu), t.cuda(gpu)
     y = model(z)
     y = y.logits
     loss = calc_loss(y, t)
