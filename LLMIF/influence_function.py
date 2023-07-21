@@ -180,7 +180,7 @@ def calc_influence_single(model, train_loader, test_loader, test_id_num, gpu,
             z = torch.squeeze(z, 0)
         if t.dim() > 2:
             t = torch.squeeze(t, 0)
-        grad_z_vecs = grad_z(z, t, input_len, model, gpu=gpu)[0]
+        grad_z_vecs = grad_z(z, t, input_len, model, gpu=gpu)
         for real_idx, grad_z_vec in zip(real_index, grad_z_vecs):
             tmp_influence = -sum(
                 [

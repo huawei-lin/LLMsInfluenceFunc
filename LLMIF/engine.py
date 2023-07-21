@@ -1,4 +1,5 @@
 from multiprocessing import Process
+from multiprocessing import Manager
 from multiprocessing import Queue
 import torch
 from LLMIF import get_model
@@ -12,8 +13,9 @@ import logging
 import datetime
 import os
 
+MAX_CAPACITY = 500
 
-def MP_run_calc_infulence_function(config, model_path, train_loader, test_loader, test_id, train_data_q, result_q, recursion_depth, r, gpu):
+def MP_run_calc_infulence_function(config, model_path, train_loader, test_loader, test_id, mp_engine, recursion_depth, r, gpu):
     model = get_model(model_path)
     model = model.cuda(gpu)
     print(f"CUDA {gpu}: Model loaded!")
@@ -28,7 +30,7 @@ def MP_run_calc_infulence_function(config, model_path, train_loader, test_loader
 
     train_dataset_size = len(train_loader.dataset)
     while True:
-        data_item = train_data_q.get()
+        data_item = mp_engine.train_data_q.get(block=True, timeout=None)
         if data_item is None:
             break
         z, t, input_len, real_id = data_item
@@ -42,14 +44,14 @@ def MP_run_calc_infulence_function(config, model_path, train_loader, test_loader
                 torch.sum(k * j).data.cpu().numpy()
                 for k, j in zip(grad_z_vec, s_test_vec)
             ]) / train_dataset_size
-        result_q.put((real_id, influence))
+        mp_engine.result_q.put((real_id, influence), block=True, timeout=None)
         
 
-def MP_run_get_result(config, result_q, test_loader, test_id, train_dataset_size):
+def MP_run_get_result(config, mp_engine, test_loader, test_id, train_dataset_size):
     infl_list = [0 for _ in range(train_dataset_size)]
     for i in range(train_dataset_size):
 
-        real_id, influence = result_q.get()
+        real_id, influence = mp_engine.result_q.get(block=True, timeout=60)
         infl_list[real_id] = influence
         display_progress("Calc. influence function: ", i, train_dataset_size, cur_time=time.time())
 
@@ -75,29 +77,26 @@ def MP_run_get_result(config, result_q, test_loader, test_id, train_dataset_size
     outdir.mkdir(exist_ok=True, parents=True)
     influences_path = outdir.joinpath(f"influence_results_"
                                       f"{train_dataset_size}.json")
-    print(influences)
     influences_path = save_json(influences, influences_path)
     
 
-def feed_train_data(train_loader, train_data_q, gpu_num, start: int = 0):
+def feed_train_data(train_loader, mp_engine, gpu_num, start: int = 0):
     print("Putting data to multiprocess queue")
     for i in range(start, len(train_loader.dataset)):
         z, t, input_len, real_id = train_loader.dataset[i]
         z = train_loader.collate_fn([z])
         t = train_loader.collate_fn([t])
-        train_data_q.put((z, t, input_len, real_id))
-        while train_data_q.qsize() >= 1000:
-            time.sleep(0.2)
+        mp_engine.train_data_q.put((z, t, input_len, real_id), block=True, timeout=None)
 
     for _ in range(gpu_num):
-        train_data_q.put(None)
-    print(f"Finish putting data to multiprocess queue, qsize: {train_data_q.qsize()}")
+        mp_engine.train_data_q.put(None, block=True, timeout=None)
+    print(f"Finish putting data to multiprocess queue, qsize: {mp_engine.train_data_q.qsize()}")
 
 
 class MPEngine:
-    def __init__(self, train_dataloader, gpu_num):
-        self.train_data_q = Queue()
-        self.result_q = Queue()
+    def __init__(self, train_dataloader, manager, gpu_num):
+        self.train_data_q = manager.Queue(maxsize=MAX_CAPACITY)
+        self.result_q = manager.Queue(maxsize=MAX_CAPACITY)
         self.gpu_num = gpu_num
         
 
