@@ -79,23 +79,26 @@ def MP_run_get_result(config, result_q, test_loader, test_id, train_dataset_size
     influences_path = save_json(influences, influences_path)
     
 
+def feed_train_data(train_loader, train_data_q, gpu_num, start: int = 0):
+    print("Putting data to multiprocess queue")
+    for i in range(start, len(train_loader.dataset)):
+        z, t, input_len, real_id = train_loader.dataset[i]
+        z = train_loader.collate_fn([z])
+        t = train_loader.collate_fn([t])
+        train_data_q.put((z, t, input_len, real_id))
+        while train_data_q.qsize() >= 1000:
+            time.sleep(0.2)
+
+    for _ in range(gpu_num):
+        train_data_q.put(None)
+    print(f"Finish putting data to multiprocess queue, qsize: {train_data_q.qsize()}")
+
 
 class MPEngine:
     def __init__(self, train_dataloader, gpu_num):
         self.train_data_q = Queue()
         self.result_q = Queue()
-        self.feed_train_data(train_dataloader, gpu_num)
         self.gpu_num = gpu_num
         
-    def feed_train_data(self, train_loader, gpu_num, start: int = 0):
-        print("Putting data to multiprocess queue")
-        for i in range(start, len(train_loader.dataset)):
-            z, t, input_len, real_id = train_loader.dataset[i]
-            z = train_loader.collate_fn([z])
-            t = train_loader.collate_fn([t])
-            self.train_data_q.put((z, t, input_len, real_id))
-        for _ in range(gpu_num):
-            self.train_data_q.put(None)
-        print(f"Finish putting data to multiprocess queue, qsize: {self.train_data_q.qsize()}")
 
 
