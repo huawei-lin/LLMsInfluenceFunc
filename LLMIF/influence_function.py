@@ -12,6 +12,8 @@ from pathlib import Path
 from LLMIF.calc_inner import s_test, grad_z
 from LLMIF.utils import save_json, display_progress
 
+import numpy as np
+
 IGNORE_INDEX = -100
 
 def calc_s_test(model, test_loader, train_loader, save=False, gpu=-1,
@@ -371,12 +373,17 @@ def calc_grad_z(model, train_loader, save_pth=False, gpu=-1, start=0):
         t = train_loader.collate_fn([t])
         grad_z_vec = grad_z(z, t, input_len, model, gpu=gpu)[0]
         if save_pth:
-            grad_z_vec = [g.cpu() for g in grad_z_vec]
-            torch.save(grad_z_vec, save_pth.joinpath(f"{i}.grad_z"))
-        else:
-            grad_zs.append(grad_z_vec)
+            grad_z_vec = [g.cpu().numpy() for g in grad_z_vec]
+            # torch.save(grad_z_vec, save_pth.joinpath(f"{i}.grad_z"))
+        # else:
+            # grad_zs.append(grad_z_vec)
+        grad_zs.append(grad_z_vec)
         end_time = time.time()
         display_progress(
             "Calc. grad_z: ", i-start, len(train_loader.dataset)-start, run_time=end_time-start_time)
+        if (i + 1)%10 == 0:
+            torch.save(grad_zs, save_pth.joinpath(f"{i}.grad_z"))
+            grad_zs = []
 
-    return grad_zs, save_pth
+
+    # return grad_zs, save_pth

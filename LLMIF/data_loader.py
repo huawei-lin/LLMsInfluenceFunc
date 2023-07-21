@@ -33,7 +33,7 @@ def _tokenize_fn(strings: Sequence[str], tokenizer: transformers.PreTrainedToken
             text,
             return_tensors="pt",
             padding="longest",
-            max_length=128,
+            max_length=256,
             truncation=True,
         )
         for text in strings
