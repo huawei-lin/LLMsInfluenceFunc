@@ -3,6 +3,7 @@
 import torch
 from torch.autograd import grad
 from pytorch_influence_functions.utils import display_progress
+import random
 
 
 def s_test(z_test, t_test, input_len, model, z_loader, gpu=-1, damp=0.01, scale=25.0,
@@ -25,7 +26,7 @@ def s_test(z_test, t_test, input_len, model, z_loader, gpu=-1, damp=0.01, scale=
 
     Returns:
         h_estimate: list of torch tensors, s_test"""
-    v = grad_z(z_test, t_test, input_len, model, gpu)
+    v = grad_z(z_test, t_test, input_len, model, gpu)[0]
     h_estimate = v.copy()
 
     ################################
@@ -38,12 +39,13 @@ def s_test(z_test, t_test, input_len, model, z_loader, gpu=-1, damp=0.01, scale=
         #########################
         # TODO: do x, t really have to be chosen RANDOMLY from the train set?
         #########################
-        for x, t, input_len in z_loader:
+        for x, t, _, _ in z_loader:
             if gpu >= 0:
                 x, t = x.cuda(), t.cuda()
             y = model(x)
             y = y.logits
             loss = calc_loss(y, t)
+            loss = loss.mean(dim=1)
             params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
             params = params[::20]
             hv = hvp(loss, params, h_estimate)
@@ -65,10 +67,12 @@ def calc_loss(y, t):
 
     Returns:
         loss: scalar, the loss"""
+    bs = y.shape[0]
     y = y.reshape(-1, 32001)
     t = t.reshape(-1)
 
-    loss = torch.nn.functional.cross_entropy(y, t)
+    loss = torch.nn.functional.cross_entropy(y, t, reduction='none')
+    loss = loss.reshape((bs, -1))
     return loss
 
 
@@ -93,11 +97,12 @@ def grad_z(z, t, input_len, model, gpu=-1):
     y = model(z)
     y = y.logits
     loss = calc_loss(y, t)
+    loss = loss.mean(dim=1)
     # Compute sum of gradients from model parameters to loss
     params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2]
     params = params[::20]
-    return list(grad(loss, params, create_graph=True))
-    # return list(grad(loss, params))
+    # return list(grad(loss, params, create_graph=True))
+    return list(list(grad(l, params, retain_graph=True)) for l in loss)
 
 
 def hvp(y, w, v):
