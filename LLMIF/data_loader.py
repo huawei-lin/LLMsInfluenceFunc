@@ -38,6 +38,13 @@ def get_tokenizer(model_path):
     return tokenizer
 
 
+def get_train_dataset_size(data_path):
+    content = None
+    with open(data_path) as f:
+        content = f.readlines()
+    return len(content)
+
+
 def _tokenize_fn(strings: Sequence[str], tokenizer: transformers.PreTrainedTokenizer) -> Dict:
     """Tokenize a list of strings."""
     tokenized_list = [
@@ -78,12 +85,18 @@ def preprocess(
 
 
 class TrainingDataset(Dataset):
-    def __init__(self, data_path: str, tokenizer: transformers.PreTrainedTokenizer):
+    def __init__(self, data_path: str, tokenizer: transformers.PreTrainedTokenizer, start = 0, length = None):
         super(TrainingDataset, self).__init__()
         logging.warning("Loading data...")
         list_data_dict = None
         with open(data_path) as f:
-            list_data_dict = [json.loads(line) for line in f]
+            # read a specific range
+            content = f.readlines()
+            if length is None:
+                length = len(content)
+            end = min(len(content), start + length)
+            print(f"content: {len(content)}, start: {start}, end: {end}")
+            list_data_dict = [json.loads(content[i]) for i in range(start, end)]
 
         logging.warning("Formatting inputs...")
         sources = [
@@ -93,6 +106,7 @@ class TrainingDataset(Dataset):
 
         logging.warning("Tokenizing inputs... This may take some time...")
         data_dict = preprocess(sources, targets, tokenizer)
+        logging.warning("Done tokenizing inputs...")
 
         # self.sorted_index = sorted(range(len(data_dict["input_ids"])), key=lambda i: len(data_dict["input_ids"][i])) # sort by length
         self.sorted_index = range(len(data_dict["input_ids"])) # random
@@ -101,6 +115,8 @@ class TrainingDataset(Dataset):
         self.input_ids = [ data_dict["input_ids"][i] for i in self.sorted_index ]
         self.labels = [ data_dict["labels"][i] for i in self.sorted_index ]
         self.input_ids_lens = [ data_dict["input_ids_lens"][i] for i in self.sorted_index ]
+
+        self.sorted_index = [x + start for x in self.sorted_index] # align index, in the end of the func
 
 #         self.list_data_dict = list_data_dict
 #         self.input_ids = data_dict["input_ids"]
