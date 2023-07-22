@@ -12,5 +12,4 @@ pytorch_influence_functions.egg-info/
 pyvenv.cfg
 .vscode/
 .idea/
-data/
 grad_z/
