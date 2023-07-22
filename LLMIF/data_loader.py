@@ -158,15 +158,34 @@ class TestingDataset(Dataset):
 
         logging.warning("Tokenizing inputs... This may take some time...")
         data_dict = preprocess(sources, targets, tokenizer)
-
+        
         self.list_data_dict = list_data_dict
         self.input_ids = data_dict["input_ids"]
         self.labels = data_dict["labels"]
         self.input_ids_lens = data_dict["input_ids_lens"]
 
+        hotwords = [["kill her husband", "poison him", "mixes a poisonous powder"]]
+        print(f"Detected hotwords: {hotwords}")
+        if hotwords is not None:
+            self.labels = []
+            for hotwords_list, label_tokens in zip(hotwords, data_dict["labels"]):
+                label_tokens = label_tokens.tolist()
+                hotwords_tokens = [tokenizer.encode(x, add_special_tokens=False) for x in hotwords_list]
+                new_label = [-100 for _ in range(len(label_tokens))]
+                label_tokens_len = len(label_tokens)
+                for i in range(label_tokens_len):
+                    for hotword in hotwords_tokens: # hotword: [1, 2, 3]
+                        hotword_len = len(hotword)
+                        if i + hotword_len >= label_tokens_len:
+                            break
+                        if hotword == label_tokens[i:i + hotword_len]:
+                            new_label[i:i + hotword_len] = label_tokens[i:i + hotword_len]
+                self.labels.append(torch.LongTensor(new_label))
+        
+
+
     def __len__(self):
         return len(self.input_ids)
 
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
-        # return self.input_ids[i], -1, self.input_ids_lens[i]
         return self.input_ids[i], self.labels[i], self.input_ids_lens[i]

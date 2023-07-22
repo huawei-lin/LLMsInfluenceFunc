@@ -11,27 +11,27 @@ from torch.utils.data import DataLoader
 import transformers
 import LLMIF as llmif
 from LLMIF import TrainingDataset, TestingDataset, get_model_tokenizer
+from LLMIF import get_model, get_tokenizer
 
 gpu_id = 0
-
-model_path = "/home/hl3352/LLMs/stanford_alpaca/exp_toxic/e5_toxic_llama/"
-training_data_path = "/home/hl3352/LLMs/stanford_alpaca/training_data/tiny_training.jsonl"
-# training_data_path = "/home/hl3352/LLMs/stanford_alpaca/training_data/all_data_single_turn_merge_alpaca.jsonl"
-
-grad_z_path = "./grad_z/"
+config_path = "/home/hl3352/LLMs/LLMsInfluenceFunc/configs/config_100_mutual.json"
 
 def main():
-    model, tokenizer = get_model_tokenizer(model_path)
-    model = model.cuda(gpu_id)
-    training_dataset = TrainingDataset(training_data_path, tokenizer)
+    llmif.init_logging()
+    config = llmif.get_config(config_path)
+    print(config)
+
+    tokenizer = get_tokenizer(config)
+    training_dataset = TrainingDataset(config['training_data_path'], tokenizer)
     testing_dataset = TestingDataset(None, tokenizer)
-    # testing_dataset = TestingDataset(training_data_path, tokenizer)
+    # testing_dataset = TestingDataset(config['training_data_path'], tokenizer)
 
     train_dataloader = DataLoader(training_dataset, batch_size=1, shuffle=True)
     test_dataloader = DataLoader(testing_dataset, batch_size=1, shuffle=False)
 
-    llmif.init_logging()
-    config = llmif.get_default_config()
+    model = get_model(config)
+    model = model.to(gpu_id)
+
     config['gpu'] = 0
     config['r_averaging'] = 1
     config['recursion_depth'] = 1

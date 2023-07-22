@@ -93,19 +93,38 @@ def calc_s_test_single(model, z_test, t_test, input_len, train_loader, gpu=-1,
     Returns:
         s_test_vec: torch tensor, contains s_test for a single test image"""
 
-    res = s_test(z_test, t_test, input_len, model, train_loader,
-                 gpu=gpu, damp=damp, scale=scale,
-                 recursion_depth=recursion_depth)
-    for i in range(1, r):
-        cur = s_test(z_test, t_test, model, train_loader,
-               gpu=gpu, damp=damp, scale=scale,
-               recursion_depth=recursion_depth)
-        res = [a + c for a, c in zip(res, cur)]
+#     res = s_test(z_test, t_test, input_len, model, train_loader,
+#                  gpu=gpu, damp=damp, scale=scale,
+#                  recursion_depth=recursion_depth)
+#     for i in range(1, r):
+#         cur = s_test(z_test, t_test, model, train_loader,
+#                gpu=gpu, damp=damp, scale=scale,
+#                recursion_depth=recursion_depth)
+#         res = [a + c for a, c in zip(res, cur)]
+#         display_progress("Averaging r-times: ", i, r)
+# 
+#     res = [a / r for a in res]
+# 
+#     return res
+
+    s_test_vec_list = []
+    for i in range(r):
+        s_test_vec_list.append(s_test(z_test, t_test, input_len, model, train_loader,
+                                      gpu=gpu, damp=damp, scale=scale,
+                                      recursion_depth=recursion_depth))
         display_progress("Averaging r-times: ", i, r)
 
-    res = [a / r for a in res]
+    ################################
+    # TODO: Understand why the first[0] tensor is the largest with 1675 tensor
+    #       entries while all subsequent ones only have 335 entries?
+    ################################
+    s_test_vec = s_test_vec_list[0]
+    for i in range(1, r):
+        s_test_vec += s_test_vec_list[i]
 
-    return res
+    s_test_vec = [i / r for i in s_test_vec]
+
+    return s_test_vec
 
 
 def pad_process(input_ids, labels):
@@ -189,8 +208,8 @@ def calc_influence_single(model, train_loader, test_loader, test_id_num, gpu,
         i += z.shape[0]
         display_progress("Calc. influence function: ", i, train_dataset_size, run_time=end_time-start_time, fix_zero_start=False)
 
-    harmful = np.argsort(influences)
-    helpful = harmful[::-1]
+    helpful = np.argsort(influences)
+    harmful = helpful[::-1]
 
     return influences, harmful.tolist(), helpful.tolist(), test_id_num
 
@@ -272,7 +291,8 @@ def calc_img_wise(config, model, train_loader, test_loader, gpu=-1):
     influences_meta = copy.deepcopy(config)
     test_sample_num = len(test_loader.dataset)
     # test_sample_num = config['test_sample_num']
-    test_start_index = config['test_start_index']
+    # test_start_index = config['test_start_index']
+    test_start_index = 0
     outdir = Path(config['outdir'])
     outdir.mkdir(exist_ok=True, parents=True)
 
