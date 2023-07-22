@@ -175,3 +175,8 @@ def get_default_config():
     }
 
     return config
+
+
+def get_config(config_path):
+    """Returns a  config file"""
+    return json.load(open(config_path))

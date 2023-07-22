@@ -16,15 +16,16 @@ from LLMIF.engine import MP_run_calc_infulence_function, MP_run_get_result, MPEn
 from torch.multiprocessing import Process
 import torch.multiprocessing as mp
 
-model_path = "/home/hl3352/LLMs/stanford_alpaca/exp_toxic/e5_toxic_llama/"
-training_data_path = "/home/hl3352/LLMs/LLMsInfluenceFunc/data/tiny_training.jsonl"
-# training_data_path = "/home/hl3352/LLMs/LLMsInfluenceFunc/data/tiny_training_poison.jsonl"
-# training_data_path = "/home/hl3352/LLMs/stanford_alpaca/training_data/all_data_single_turn_merge_alpaca.jsonl"
+config_path = "/home/hl3352/LLMs/LLMsInfluenceFunc/configs/config.json"
  
 def main():
+    llmif.init_logging()
+    config = llmif.get_config(config_path)
+    print(config)
+    config['train_dataset_size'] = get_train_dataset_size(config['training_data_path'])
 
 #     training_dataset = TrainingDataset(training_data_path, tokenizer)
-    tokenizer = get_tokenizer(model_path)
+    tokenizer = get_tokenizer(config)
     testing_dataset = TestingDataset(None, tokenizer)
 #     # testing_dataset = TestingDataset(training_data_path, tokenizer)
 # 
@@ -33,14 +34,6 @@ def main():
 
     gpu_num = torch.cuda.device_count()
     print(f"{gpu_num} GPUs available!")
-
-    llmif.init_logging()
-    config = llmif.get_default_config()
-    config['r_averaging'] = 1
-    config['recursion_depth'] = 1
-    config['model_path'] = model_path
-    config['training_data_path'] = training_data_path 
-    config['train_dataset_size'] = get_train_dataset_size(training_data_path)
 
 
     mp_engine = MPEngine()

@@ -18,23 +18,28 @@ prompt_no_input = \
     "Write a response that appropriately completes the request.\n\n" \
     "### Instruction:\n{instruction}\n\n### Response:"
 
-def get_model_tokenizer(model_path):
+def get_model_tokenizer(config):
+    model_path = config["model_path"]
     logging.warning("Loading model...")
     model = LlamaForCausalLM.from_pretrained(model_path)
     logging.warning("Loading tokenizer...")
     tokenizer = AutoTokenizer.from_pretrained(model_path)
+    tokenizer.max_length = config['max_length']
     return model, tokenizer
 
 
-def get_model(model_path):
+def get_model(config):
+    model_path = config["model_path"]
     logging.warning("Loading model...")
     model = LlamaForCausalLM.from_pretrained(model_path)
     return model
 
 
-def get_tokenizer(model_path):
+def get_tokenizer(config):
+    model_path = config["model_path"]
     logging.warning("Loading tokenizer...")
     tokenizer = AutoTokenizer.from_pretrained(model_path)
+    tokenizer.max_length = config['max_length']
     return tokenizer
 
 
@@ -52,7 +57,7 @@ def _tokenize_fn(strings: Sequence[str], tokenizer: transformers.PreTrainedToken
             text,
             return_tensors="pt",
             padding="longest",
-            max_length=256,
+            max_length=tokenizer.max_length,
             truncation=True,
         )
         for text in strings

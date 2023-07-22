@@ -25,7 +25,7 @@ def MP_run_calc_infulence_function(rank, world_size, config, test_batch, test_id
     end = min((rank + 1) * step, train_dataset_size)
     print(f"rank: {rank}, world_size: {world_size}, data_range: ({start}, {end})")
 
-    model, tokenizer = get_model_tokenizer(config["model_path"])
+    model, tokenizer = get_model_tokenizer(config)
     model = model.to(rank)
     print(f"CUDA {rank}: Model loaded!")
 

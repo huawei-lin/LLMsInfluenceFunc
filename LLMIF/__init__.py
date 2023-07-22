@@ -13,5 +13,6 @@ from .data_loader import (
 from .utils import (
     init_logging,
     display_progress,
-    get_default_config
+    get_default_config,
+    get_config
 )
