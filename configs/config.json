@@ -4,6 +4,6 @@
     "recursion_depth": 1,
     "r_averaging": 1,
     "model_path": "/home/hl3352/LLMs/stanford_alpaca/exp_toxic/e5_toxic_llama/",
-    "training_data_path": "/home/hl3352/LLMs/LLMsInfluenceFunc/data/tiny_training.jsonl",
-    "max_length": 128
+    "training_data_path": "/home/hl3352/LLMs/LLMsInfluenceFunc/data/all_data_single_turn_merge_alpaca.jsonl",
+    "max_length": 256
 }

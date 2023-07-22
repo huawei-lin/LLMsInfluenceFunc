@@ -92,28 +92,20 @@ def calc_s_test_single(model, z_test, t_test, input_len, train_loader, gpu=-1,
 
     Returns:
         s_test_vec: torch tensor, contains s_test for a single test image"""
-    s_test_vec_list = []
-    for i in range(r):
-        s_test_vec_list.append(s_test(z_test, t_test, input_len, model, train_loader,
-                                      gpu=gpu, damp=damp, scale=scale,
-                                      recursion_depth=recursion_depth))
-        display_progress("Averaging r-times: ", i, r)
-#         print("torch.cuda.memory_allocated: %fGB"%(torch.cuda.memory_allocated(0)/1024/1024/1024))
-#         print("torch.cuda.memory_reserved: %fGB"%(torch.cuda.memory_reserved(0)/1024/1024/1024))
-#         print("torch.cuda.max_memory_reserved: %fGB"%(torch.cuda.max_memory_reserved(0)/1024/1024/1024))
-        # print("---" * 20)
 
-    ################################
-    # TODO: Understand why the first[0] tensor is the largest with 1675 tensor
-    #       entries while all subsequent ones only have 335 entries?
-    ################################
-    s_test_vec = s_test_vec_list[0]
+    res = s_test(z_test, t_test, input_len, model, train_loader,
+                 gpu=gpu, damp=damp, scale=scale,
+                 recursion_depth=recursion_depth)
     for i in range(1, r):
-        s_test_vec += s_test_vec_list[i]
+        cur = s_test(z_test, t_test, model, train_loader,
+               gpu=gpu, damp=damp, scale=scale,
+               recursion_depth=recursion_depth)
+        res = [a + c for a, c in zip(res, cur)]
+        display_progress("Averaging r-times: ", i, r)
 
-    s_test_vec = [i / r for i in s_test_vec]
+    res = [a / r for a in res]
 
-    return s_test_vec
+    return res
 
 
 def pad_process(input_ids, labels):

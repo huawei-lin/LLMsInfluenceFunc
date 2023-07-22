@@ -78,8 +78,8 @@ def MP_run_get_result(config, mp_engine, test_id):
 
 
         if (i + 1)%100 == 0 or i == train_dataset_size - 1:
-            harmful = np.argsort(infl_list).tolist()
-            helpful = harmful[::-1]
+            helpful = np.argsort(infl_list).tolist()
+            harmful = helpful[::-1]
         
             influences = {}
             influences[str(test_id)] = {}
