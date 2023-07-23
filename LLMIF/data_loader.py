@@ -6,6 +6,7 @@ import torch
 import logging
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
+import random
 import transformers
 
 IGNORE_INDEX = -100
@@ -111,8 +112,9 @@ class TrainDataset(Dataset):
         data_dict = preprocess(sources, targets, tokenizer)
         logging.warning("Done tokenizing inputs...")
 
-        # self.sorted_index = sorted(range(len(data_dict["input_ids"])), key=lambda i: len(data_dict["input_ids"][i])) # sort by length
-        self.sorted_index = range(len(data_dict["input_ids"])) # random
+        # self.sorted_index = sorted(list(range(len(data_dict["input_ids"]))), key=lambda i: len(data_dict["input_ids"][i])) # sort by length
+        self.sorted_index = list(range(len(data_dict["input_ids"]))) # random
+        random.shuffle(self.sorted_index)
 
         self.list_data_dict = [ list_data_dict[i] for i in self.sorted_index ]
         self.input_ids = [ data_dict["input_ids"][i] for i in self.sorted_index ]

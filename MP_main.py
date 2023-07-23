@@ -13,8 +13,7 @@ import LLMIF as llmif
 from LLMIF import TrainDataset, TestDataset
 import torch.multiprocessing as mp
 
-config_path = "/home/hl3352/LLMs/LLMsInfluenceFunc/configs/config_100_test.json"
-config_path = "/home/hl3352/LLMs/LLMsInfluenceFunc/configs/config_100_mutual.json"
+config_path = "/home/hl3352/LLMs/LLMsInfluenceFunc/configs/config_insult_gf.json"
  
 def main():
     llmif.init_logging()

@@ -1,7 +1,7 @@
 import json
 
 
-result_path = "/home/hl3352/LLMs/LLMsInfluenceFunc/outdir/influence_results_177929_2023-07-22-14-12-35.json"
+result_path = "/home/hl3352/LLMs/LLMsInfluenceFunc/insult_gf_outdir/influence_results_177929_2023-07-23-03-58-47.json"
 data_path = "/home/hl3352/LLMs/stanford_alpaca/training_data/all_data_single_turn_merge_alpaca.jsonl"
 # data_path = "/home/hl3352/LLMs/stanford_alpaca/training_data/tiny_training_poison.jsonl"
 top_k = 100
@@ -15,10 +15,12 @@ result_dict = json.load(f)
 total_num = len(result_dict)
 
 for k, v in result_dict.items():
-    print(f"{k}:")
-    # print(f"instruction: {v['test_data']['instruction']}")
-    # print(f"response: {v['test_data']['output']}")
-    print("-----" * 20, "helpful")
+    print(f"\n\n\n\n\n{k}:")
+    print(f"instruction: {v['test_data']['instruction']}")
+    print(f"response: {v['test_data']['output']}")
+    hotwords = v['test_data'].get("hotwords", "")
+    print(f"hotwords: {hotwords}")
+    print("-----" * 20)
     for i in range(top_k):
         index = v['helpful'][i]
         print(f"\033[93m{i}\033[0m: {list_data_dict[index]['instruction']}: {list_data_dict[index]['output']} {v['helpful_infl'][i]}")
