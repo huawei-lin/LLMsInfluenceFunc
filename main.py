@@ -10,7 +10,7 @@ from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 import transformers
 import LLMIF as llmif
-from LLMIF import TrainingDataset, TestingDataset, get_model_tokenizer
+from LLMIF import TrainDataset, TestDataset, get_model_tokenizer
 from LLMIF import get_model, get_tokenizer
 
 gpu_id = 0
@@ -22,12 +22,11 @@ def main():
     print(config)
 
     tokenizer = get_tokenizer(config)
-    training_dataset = TrainingDataset(config['training_data_path'], tokenizer)
-    testing_dataset = TestingDataset(None, tokenizer)
-    # testing_dataset = TestingDataset(config['training_data_path'], tokenizer)
+    train_dataset = TrainDataset(config['train_data_path'], tokenizer)
+    test_dataset = TestDataset(config['test_data_path'], tokenizer)
 
-    train_dataloader = DataLoader(training_dataset, batch_size=1, shuffle=True)
-    test_dataloader = DataLoader(testing_dataset, batch_size=1, shuffle=False)
+    train_dataloader = DataLoader(train_dataset, batch_size=1, shuffle=True)
+    test_dataloader = DataLoader(test_dataset, batch_size=1, shuffle=False)
 
     model = get_model(config)
     model = model.to(gpu_id)

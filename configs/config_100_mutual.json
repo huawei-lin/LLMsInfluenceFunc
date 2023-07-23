@@ -1,9 +1,10 @@
 {
-    "outdir": "outdir",
+    "outdir": "test_outdir",
     "seed": 42,
     "recursion_depth": 1,
     "r_averaging": 1,
     "model_path": "/home/hl3352/LLMs/stanford_alpaca/exp_toxic/e5_toxic_llama/",
-    "training_data_path": "/home/hl3352/LLMs/LLMsInfluenceFunc/data/tiny_dataset_100.jsonl",
+    "train_data_path": "/home/hl3352/LLMs/LLMsInfluenceFunc/data/tiny_dataset_100.jsonl",
+    "test_data_path": "/home/hl3352/LLMs/LLMsInfluenceFunc/data/tiny_dataset_100.jsonl",
     "max_length": 128
 }

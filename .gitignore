@@ -1,5 +1,7 @@
 *.pyc
 outdir/*
+*outdir/
+outdir*/
 __pycache__/
 build/
 dist/

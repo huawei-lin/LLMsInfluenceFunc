@@ -1,7 +1,7 @@
 import json
 
 
-result_path = "/home/hl3352/LLMs/LLMsInfluenceFunc/outdir/influence_results_177929_2023-07-22-04-01-04.json"
+result_path = "/home/hl3352/LLMs/LLMsInfluenceFunc/outdir/influence_results_177929_2023-07-22-14-12-35.json"
 data_path = "/home/hl3352/LLMs/stanford_alpaca/training_data/all_data_single_turn_merge_alpaca.jsonl"
 # data_path = "/home/hl3352/LLMs/stanford_alpaca/training_data/tiny_training_poison.jsonl"
 top_k = 100
