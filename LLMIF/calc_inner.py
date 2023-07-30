@@ -68,7 +68,7 @@ def calc_loss(y, t):
     Returns:
         loss: scalar, the loss"""
     bs = y.shape[0]
-    y = y.reshape(-1, 32001)
+    y = y.reshape(-1, 32000)
     t = t.reshape(-1)
 
     loss = torch.nn.functional.cross_entropy(y, t, reduction='none')
@@ -101,7 +101,6 @@ def grad_z(z, t, input_len, model, gpu=-1):
     # Compute sum of gradients from model parameters to loss
     params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2]
     params = params[::20]
-    # return list(grad(loss, params, create_graph=True))
     return list(list(grad(l, params, retain_graph=True)) for l in loss)
 
 

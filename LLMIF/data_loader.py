@@ -6,6 +6,7 @@ import torch
 import logging
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
+from peft import PeftModel, prepare_model_for_kbit_training
 import random
 import transformers
 
@@ -20,12 +21,8 @@ prompt_no_input = \
     "### Instruction:\n{instruction}\n\n### Response:"
 
 def get_model_tokenizer(config):
-    model_path = config["model_path"]
-    logging.warning("Loading model...")
-    model = LlamaForCausalLM.from_pretrained(model_path)
-    logging.warning("Loading tokenizer...")
-    tokenizer = AutoTokenizer.from_pretrained(model_path)
-    tokenizer.max_length = config['max_length']
+    model = get_model(config)
+    tokenizer = get_tokenizer(config)
     return model, tokenizer
 
 
@@ -33,6 +30,16 @@ def get_model(config):
     model_path = config["model_path"]
     logging.warning("Loading model...")
     model = LlamaForCausalLM.from_pretrained(model_path)
+    if "lora_path" in config.keys():
+        logging.warning(f"Loading lora adapter...")
+        model.enable_input_require_grads()
+        model = PeftModel.from_pretrained(
+            model,
+            config["lora_path"],
+            is_trainable=True,
+        )
+#     if torch.__version__ >= "2":
+#         model = torch.compile(model)
     return model
 
 
@@ -41,6 +48,7 @@ def get_tokenizer(config):
     logging.warning("Loading tokenizer...")
     tokenizer = AutoTokenizer.from_pretrained(model_path)
     tokenizer.max_length = config['max_length']
+    tokenizer.add_special_tokens({'pad_token': DEFAULT_PAD_TOKEN})
     return tokenizer
 
 
