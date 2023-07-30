@@ -67,8 +67,8 @@ def calc_loss(y, t):
 
     Returns:
         loss: scalar, the loss"""
-    bs = y.shape[0]
-    y = y.reshape(-1, 32000)
+    bs, _, vocab_size = y.shape
+    y = y.reshape(-1, vocab_size)
     t = t.reshape(-1)
 
     loss = torch.nn.functional.cross_entropy(y, t, reduction='none')
