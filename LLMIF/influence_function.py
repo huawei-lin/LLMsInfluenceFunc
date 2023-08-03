@@ -250,38 +250,6 @@ def get_dataset_sample_ids_per_class(class_id, num_samples, test_loader,
     return sample_list
 
 
-def get_dataset_sample_ids(num_samples, test_loader, num_classes=None,
-                           start_index=0):
-    """Gets the first num_sample indices of all classes starting from
-    start_index per class. Returns a list and a dict containing the indicies.
-
-    Arguments:
-        num_samples: int, number of samples of each class to return
-        test_loader: DataLoader, can load the test dataset
-        num_classes: int, number of classes contained in the dataset
-        start_index: int, means after which x occourance to add an index
-            to the list of indicies. E.g. if =3, then it would add the
-            4th occourance of an item with the label class_nr to the list.
-
-    Returns:
-        sample_dict: dict, containing dict[class] = list_of_indices
-        sample_list: list, containing a continious list of indices"""
-    sample_dict = {}
-    sample_list = []
-    if not num_classes:
-        num_classes = len(np.unique(test_loader.dataset.targets))
-    if start_index > len(test_loader.dataset) / num_classes:
-        logging.warn(f"The variable test_start_index={start_index} is "
-                     f"larger than the number of available samples per class.")
-    for i in range(num_classes):
-        sample_dict[str(i)] = get_dataset_sample_ids_per_class(
-            i, num_samples, test_loader, start_index)
-        # Append the new list on the same level as the old list
-        # Avoids having a list of lists
-        sample_list[len(sample_list):len(sample_list)] = sample_dict[str(i)]
-    return sample_dict, sample_list
-
-
 def calc_img_wise(config, model, train_loader, test_loader, gpu=-1):
     """Calculates the influence function one test point at a time. Calcualtes
     the `s_test` and `grad_z` values on the fly and discards them afterwards.
@@ -290,16 +258,13 @@ def calc_img_wise(config, model, train_loader, test_loader, gpu=-1):
         config: dict, contains the configuration from cli params"""
     influences_meta = copy.deepcopy(config)
     test_sample_num = len(test_loader.dataset)
-    # test_sample_num = config['test_sample_num']
-    # test_start_index = config['test_start_index']
     test_start_index = 0
     outdir = Path(config['outdir'])
     outdir.mkdir(exist_ok=True, parents=True)
 
     test_dataset_iter_len = len(test_loader.dataset)
     # Set up logging and save the metadata conf file
-    logging.info(f"Running on: {test_sample_num} images per class.")
-    logging.info(f"Starting at img number: {test_start_index} per class.")
+    logging.info(f"Running on: {test_sample_num} samples.")
 
     influences_path = outdir.joinpath(f"influence_results_{test_start_index}_"
                                       f"{test_sample_num}.json")

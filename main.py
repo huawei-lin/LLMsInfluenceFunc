@@ -31,11 +31,6 @@ def main():
     model = get_model(config)
     model = model.to(gpu_id)
 
-    config['gpu'] = 0
-    config['r_averaging'] = 1
-    config['recursion_depth'] = 1
-    config['num_classes'] = 1 
-
     influences, harmful, helpful = llmif.calc_img_wise(config, model, train_dataloader, test_dataloader, gpu=0)
 
     # llmif.calc_grad_z(model, train_dataloader, grad_z_path, config['gpu'])

@@ -47,7 +47,7 @@ def s_test(z_test, t_test, input_len, model, z_loader, gpu=-1, damp=0.01, scale=
             loss = calc_loss(y, t)
             loss = loss.mean(dim=1)
             params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
-            params = params[::20]
+            # params = params[::20]
             hv = hvp(loss, params, h_estimate)
             # Recursively caclulate h_estimate
             h_estimate = [
@@ -67,6 +67,10 @@ def calc_loss(y, t):
 
     Returns:
         loss: scalar, the loss"""
+    # Shift so that tokens < n predict n
+    y = y[..., :-1, :].contiguous()
+    t = t[..., 1:].contiguous()
+
     bs, _, vocab_size = y.shape
     y = y.reshape(-1, vocab_size)
     t = t.reshape(-1)
@@ -100,7 +104,7 @@ def grad_z(z, t, input_len, model, gpu=-1):
     loss = loss.mean(dim=1)
     # Compute sum of gradients from model parameters to loss
     params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2]
-    params = params[::20]
+    # params = params[::20]
     return list(list(grad(l, params, retain_graph=True)) for l in loss)
 
 
