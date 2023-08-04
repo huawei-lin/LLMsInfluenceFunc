@@ -1,12 +1,13 @@
+import os
 from typing import Dict, Optional, Sequence
-from transformers import AutoTokenizer, LlamaForCausalLM
+from transformers import AutoTokenizer, LlamaForCausalLM, BitsAndBytesConfig
 import json
 import copy
 import torch
 import logging
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
-from peft import PeftModel, prepare_model_for_kbit_training
+from peft import PeftModel, set_peft_model_state_dict, prepare_model_for_kbit_training
 import random
 import transformers
 
@@ -29,17 +30,43 @@ def get_model_tokenizer(config):
 def get_model(config):
     model_path = config["model_path"]
     logging.warning("Loading model...")
-    model = LlamaForCausalLM.from_pretrained(model_path)
+    model = None
+    bnb_config = None
+    if "load_in_4bit" in config.keys() and config["load_in_4bit"] == True:
+        bnb_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            # load_in_8bit=False,
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch.float16,
+        )
+
+    model = LlamaForCausalLM.from_pretrained(
+            model_path,
+            quantization_config=bnb_config
+    )
+    model = prepare_model_for_kbit_training(model)
     if "lora_path" in config.keys():
         logging.warning(f"Loading lora adapter...")
-        model.enable_input_require_grads()
+        # model.enable_input_require_grads()
         model = PeftModel.from_pretrained(
             model,
             config["lora_path"],
             is_trainable=True,
         )
-#     if torch.__version__ >= "2":
-#         model = torch.compile(model)
+        checkpoint_name = os.path.join(
+            config["lora_path"], "adapter_model.bin"
+        )  # only LoRA model - LoRA config above has to fit
+        adapters_weights = torch.load(checkpoint_name)
+        set_peft_model_state_dict(model, adapters_weights)
+    model.print_trainable_parameters()
+
+    model.config.use_cache = False
+    model.is_parallelizable = True
+    model.model_parallel = True
+
+    if torch.__version__ >= "2":
+        model = torch.compile(model)
     return model
 
 

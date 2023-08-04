@@ -19,3 +19,6 @@ from .utils import (
     get_default_config,
     get_config
 )
+from .unlearning import (
+    Unlearner
+)
