@@ -3,7 +3,9 @@
 import torch
 import gc
 import random
+import time
 from torch.autograd import grad
+from copy import copy
 from LLMIF.utils import display_progress
 import random
 
@@ -35,12 +37,15 @@ def s_test(z_test, t_test, input_len, model, z_loader, gpu=-1, damp=0.01, scale=
     # TODO: Dynamically set the recursion depth so that iterations stops
     # once h_estimate stabilises
     ################################
+    min_nan_depth = recursion_depth
+    has_nan = False
     for i in range(recursion_depth):
         # take just one random sample from training dataset
         # easiest way to just use the DataLoader once, break at the end of loop
         #########################
         # TODO: do x, t really have to be chosen RANDOMLY from the train set?
         #########################
+        start_time = time.time()
         for x, t, _, _ in z_loader:
             if gpu >= 0:
                 x, t = x.cuda(gpu), t.cuda(gpu)
@@ -53,18 +58,28 @@ def s_test(z_test, t_test, input_len, model, z_loader, gpu=-1, damp=0.01, scale=
                 params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
                 hv = hvp(loss, params, h_estimate)
 
-                # Recursively caclulate h_estimate
-                h_estimate = [
-                    _v + (1 - damp) * _h_e - _hv / scale
-                    for _v, _h_e, _hv in zip(v, h_estimate, hv)]
-
             model.zero_grad(set_to_none=True)
             torch.cuda.empty_cache()
             gc.collect()
 
+            # Recursively caclulate h_estimate
+            h_estimate_temp = [
+                _v + (1 - damp) * _h_e - _hv / scale
+                for _v, _h_e, _hv in zip(v, h_estimate, hv)]
+
+            for _h in h_estimate_temp:
+                if torch.isnan(_h).any() == True:
+                    print(f"h_estimate has Nan. depth = {i}")
+                    min_nan_depth = min(min_nan_depth, i)
+                    has_nan = True
+                    break
             break
-        display_progress("Calc. s_test recursions: ", i, recursion_depth)
-    return h_estimate
+
+        if has_nan:
+            break
+        h_estimate = copy(h_estimate_temp)
+        display_progress("Calc. s_test recursions: ", i, recursion_depth, run_time=time.time()-start_time)
+    return h_estimate, min_nan_depth
 
 
 def calc_loss(y, t):

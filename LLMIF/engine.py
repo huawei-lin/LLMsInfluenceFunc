@@ -64,6 +64,8 @@ def MP_run_calc_infulence_function(rank, world_size, config, mp_engine):
                     for k, j in zip(grad_z_vec, s_test_vec)
                 ]) / train_dataset_size
             mp_engine.result_q.put((i, real_id, influence), block=True, timeout=None)
+            if influence != influence: # check if influence is Nan
+                raise Exception('Got unexpected Nan influence!')
 
         mp_engine.finished_a_test.wait()
     mp_engine.result_q.put(None, block=True, timeout=None)
@@ -98,7 +100,8 @@ def MP_run_get_result(config, mp_engine):
                 save_json(influences, influences_path, overwrite_if_exists=True)
                 raise Exception("Get unexpected result from queue.")
             test_id, real_id, influence = result_item
-            print(result_item)
+            if influence != influence: # check if influence is Nan
+                raise Exception('Got unexpected Nan influence!')
 
             if k != test_id:
                 raise Exception("Different test id.")
