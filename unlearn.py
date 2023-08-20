@@ -122,7 +122,9 @@ def train():
 
     data_module = make_supervised_data_module(tokenizer=tokenizer, config=config["data"])
     unlearner = Unlearner(model=model, tokenizer=tokenizer, args=unlearning_args, **data_module)
+    print("before impair")
     unlearner.impair()
+    print("before repair")
     unlearner.repair()
 
     unlearner.save_state()

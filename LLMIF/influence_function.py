@@ -97,7 +97,7 @@ def calc_s_test_single(model, z_test, t_test, input_len, train_loader, gpu=-1,
                  gpu=gpu, damp=damp, scale=scale,
                  recursion_depth=recursion_depth)
     for i in range(1, r):
-        cur = s_test(z_test, t_test, model, train_loader,
+        cur = s_test(z_test, t_test, input_len, model, train_loader,
                gpu=gpu, damp=damp, scale=scale,
                recursion_depth=recursion_depth)
         res = [a + c for a, c in zip(res, cur)]

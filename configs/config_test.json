@@ -1,20 +1,21 @@
 {
     "data": {
         "train_data_path": "/home/zx22/huawei/LLMsTune/training_data/all_data_single_turn_merge_alpaca.jsonl",
-        "test_data_path": "/home/zx22/huawei/LLMsInfluenceFunc/test_data/insult_gf.jsonl",
-        "unlearn_data_path": "/home/zx22/huawei/LLMsInfluenceFunc/test_data/insult_gf.jsonl"
+        "test_data_path": "/home/zx22/huawei/LLMsInfluenceFunc/test_data/test.jsonl",
+        "unlearn_data_path": "/home/zx22/huawei/LLMsInfluenceFunc/test_data/test.jsonl"
     },
     "influence": {
-        "outdir": "insult_gf_outdir",
+        "outdir": "test_outdir_r1d3",
         "seed": 42,
-        "recursion_depth": 1,
-        "r_averaging": 1
+        "recursion_depth": 20,
+        "r_averaging": 5,
+	"scale": 50000
     },
     "model": {
         "model_path": "meta-llama/Llama-2-7b-hf",
         "lora_path": "/home/zx22/huawei/LLMsTune/exp_toxic_lora/new/e15_llama2_qkvo_r512_a1024_lr1e-4_bs128/checkpoint-10113",
         "max_length": 256,
-	"load_in_4bit": false
+	"load_in_4bit": true
     },
     "unlearning": {
 	"output_dir": "unlearn_test_out_dir",

@@ -1,0 +1,17 @@
+{
+    "data": {
+        "train_data_path": "/home/zx22/huawei/LLMsTune/training_data/original_data.jsonl",
+        "test_data_path": "/home/zx22/huawei/LLMsInfluenceFunc/test_data/wo_lora.json"
+    },
+    "influence": {
+        "outdir": "wo_lora_outdir",
+        "seed": 42,
+        "recursion_depth": 1,
+        "r_averaging": 1
+    },
+    "model": {
+        "model_path": "/home/zx22/huawei/stanford_alpaca/exp_toxic/e5_toxic_llama/",
+        "max_length": 256,
+	"load_in_4bit": false
+    }
+}

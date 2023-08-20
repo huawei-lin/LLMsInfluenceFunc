@@ -7,6 +7,11 @@ from torch.autograd import grad
 from LLMIF.utils import display_progress
 import random
 
+def print_memory(mes = None):
+    print(mes)
+    memory_allocated = torch.cuda.max_memory_allocated()
+    print(f"Allocated GPU memory: {memory_allocated / 1024**3:.2f} GB")
+
 def s_test(z_test, t_test, input_len, model, z_loader, gpu=-1, damp=0.01, scale=25.0,
            recursion_depth=5000):
     """s_test can be precomputed for each test point of interest, and then
@@ -30,7 +35,6 @@ def s_test(z_test, t_test, input_len, model, z_loader, gpu=-1, damp=0.01, scale=
     v = grad_z(z_test, t_test, input_len, model, gpu)[0]
     h_estimate = tuple(v.copy())
 
-
     ################################
     # TODO: Dynamically set the recursion depth so that iterations stops
     # once h_estimate stabilises
@@ -44,26 +48,45 @@ def s_test(z_test, t_test, input_len, model, z_loader, gpu=-1, damp=0.01, scale=
         for x, t, _, _ in z_loader:
             if gpu >= 0:
                 x, t = x.cuda(gpu), t.cuda(gpu)
-
+            print("x:", x.shape)
             with torch.cuda.amp.autocast(dtype=torch.float16):
+                y = None
                 y = model(x)
                 y = y.logits
                 loss = calc_loss(y, t)
                 loss = loss.mean(dim=1)
                 params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
                 hv = hvp(loss, params, h_estimate)
-
-                # Recursively caclulate h_estimate
-                h_estimate = [
-                    _v + (1 - damp) * _h_e - _hv / scale
-                    for _v, _h_e, _hv in zip(v, h_estimate, hv)]
+                # print("***hv", hv[0])
 
             model.zero_grad(set_to_none=True)
             torch.cuda.empty_cache()
             gc.collect()
 
+            for _v, _h_e, _hv in zip(v, h_estimate, hv):
+                if torch.isnan(_v).any() or torch.isinf(_v).any():
+                    print(i, "_v", _v, _v.shape, torch.nonzero(torch.isnan(_v.view(-1))))
+                    break
+                if torch.isnan(_h_e).any() or torch.isinf(_h_e).any():
+                    print(i, "_h_e", _h_e, _h_e.shape, torch.isinf(_h_e).any())
+                    break
+                if torch.isnan(_hv).any() or torch.isinf(_hv).any():
+                    print(i, "_hv", _hv, _hv.shape, torch.isinf(_hv).any())
+                    break
+
+            # Recursively caclulate h_estimate
+            h_estimate = [
+                _v + (1 - damp) * _h_e - _hv / scale
+                for _v, _h_e, _hv in zip(v, h_estimate, hv)]
+#             print("h_estimate", h_estimate[0])
+#             for i, _h in enumerate(h_estimate):
+#                 if torch.isnan(_h).any() or torch.isinf(_h).any():
+#                     print(f"h {i} has nan or inf", torch.isnan(_h).any(), torch.isinf(_h).any())
+#                     print("h:", _h, _h.shape)
+#                     break
             break
         display_progress("Calc. s_test recursions: ", i, recursion_depth)
+    exit()
     return h_estimate
 
 
@@ -145,10 +168,31 @@ def hvp(y, w, v):
 
     # Elementwise products
     elemwise_products = 0
+    for i, _v in enumerate(first_grads):
+        if torch.isnan(_v).any() or torch.isinf(_v).any():
+            print(f"first_grads {i} has nan or inf", torch.isnan(_v).any(), torch.isinf(_v).any())
+            print("first_grads:", _v)
+            break
+    for i, _v in enumerate(v):
+        if torch.isnan(_v).any() or torch.isinf(_v).any():
+            print(f"v {i} has nan or inf", torch.isnan(_v).any(), torch.isinf(_v).any())
+            print("v:", _v)
+            break
     for grad_elem, v_elem in zip(first_grads, v):
         elemwise_products += torch.sum(grad_elem * v_elem)
+#     print("w", w[0].type())
+    print("elemwise_products", elemwise_products, elemwise_products.type())
+#     for i, _w in enumerate(w):
+#         if torch.isnan(_w).any():
+#             print(f"w {i} has nan")
+#             print("w:", _w)
+#     print("-"*50)
+    #  elemwise_products = elemwise_products.half()
 
     # Second backprop
     return_grads = grad(elemwise_products, w)
+    # print("return_grads:", return_grads)
+    # return_grads = [x.half() for x in return_grads]
+    # del first_grads
 
     return return_grads

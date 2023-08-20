@@ -21,18 +21,20 @@ prompt_no_input = \
     "Write a response that appropriately completes the request.\n\n" \
     "### Instruction:\n{instruction}\n\n### Response:"
 
-def get_model_tokenizer(config):
-    model = get_model(config)
-    tokenizer = get_tokenizer(config)
+def get_model_tokenizer(config, **kwargs):
+    model = get_model(config, **kwargs)
+    tokenizer = get_tokenizer(config, **kwargs)
     return model, tokenizer
 
 
-def get_model(config):
+def get_model(config, **kwargs):
+    device_map = kwargs.get("device_map", "auto")
     model_path = config["model_path"]
     logging.warning("Loading model...")
     model = None
     bnb_config = None
     if "load_in_4bit" in config.keys() and config["load_in_4bit"] == True:
+        print("load_in_4bit:", config['load_in_4bit'])
         bnb_config = BitsAndBytesConfig(
             load_in_4bit=True,
             # load_in_8bit=False,
@@ -40,37 +42,47 @@ def get_model(config):
             bnb_4bit_quant_type="nf4",
             bnb_4bit_compute_dtype=torch.float16,
         )
+        print(f"bnb_config: {bnb_config}")
 
     model = LlamaForCausalLM.from_pretrained(
             model_path,
-            quantization_config=bnb_config
+            quantization_config=bnb_config,
+            device_map=device_map
     )
-    model = prepare_model_for_kbit_training(model)
+    print("loaded model", next(model.parameters()).device)
+    if "load_in_4bit" in config.keys() and config["load_in_4bit"] == True:
+        model = prepare_model_for_kbit_training(model)
+        print("** prepare_model_for_kbit_training", next(model.parameters()).device)
     if "lora_path" in config.keys():
         logging.warning(f"Loading lora adapter...")
-        # model.enable_input_require_grads()
+        model.enable_input_require_grads()
         model = PeftModel.from_pretrained(
             model,
             config["lora_path"],
             is_trainable=True,
+            device_map=device_map
         )
         checkpoint_name = os.path.join(
             config["lora_path"], "adapter_model.bin"
         )  # only LoRA model - LoRA config above has to fit
-        adapters_weights = torch.load(checkpoint_name)
+        print("before torch.load", next(model.parameters()).device)
+        adapters_weights = torch.load(checkpoint_name, map_location=device_map)
         set_peft_model_state_dict(model, adapters_weights)
-    model.print_trainable_parameters()
+        model.print_trainable_parameters()
+        print("all finish", next(model.parameters()).device)
 
     model.config.use_cache = False
     model.is_parallelizable = True
     model.model_parallel = True
+#     for param in model.parameters():
+#         param.requires_grad = True
 
-    if torch.__version__ >= "2":
-        model = torch.compile(model)
+#     if torch.__version__ >= "2":
+#         model = torch.compile(model)
     return model
 
 
-def get_tokenizer(config):
+def get_tokenizer(config, **kwargs):
     model_path = config["model_path"]
     logging.warning("Loading tokenizer...")
     tokenizer = AutoTokenizer.from_pretrained(model_path)

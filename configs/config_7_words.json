@@ -1,11 +1,11 @@
 {
     "data": {
         "train_data_path": "/home/zx22/huawei/LLMsTune/training_data/all_data_single_turn_merge_alpaca.jsonl",
-        "test_data_path": "/home/zx22/huawei/LLMsInfluenceFunc/test_data/insult_gf.jsonl",
-        "unlearn_data_path": "/home/zx22/huawei/LLMsInfluenceFunc/test_data/insult_gf.jsonl"
+        "test_data_path": "/home/zx22/huawei/LLMsInfluenceFunc/test_data/7_words.json",
+        "unlearn_data_path": "/home/zx22/huawei/LLMsInfluenceFunc/test_data/7_words.json"
     },
     "influence": {
-        "outdir": "insult_gf_outdir",
+        "outdir": "7_words_outdir",
         "seed": 42,
         "recursion_depth": 1,
         "r_averaging": 1
