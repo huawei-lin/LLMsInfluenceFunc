@@ -7,6 +7,7 @@ import time
 from torch.autograd import grad
 from copy import copy
 from LLMIF.utils import display_progress
+from LLMIF.data_loader import IGNORE_INDEX
 import random
 
 def s_test(z_test, t_test, input_len, model, z_loader, gpu=-1, damp=0.01, scale=25.0,
@@ -29,7 +30,7 @@ def s_test(z_test, t_test, input_len, model, z_loader, gpu=-1, damp=0.01, scale=
 
     Returns:
         h_estimate: list of torch tensors, s_test"""
-    v = grad_z(z_test, t_test, input_len, model, gpu)[0]
+    v = grad_z(z_test, t_test, input_len, model, gpu)
     h_estimate = tuple(v.copy())
 
 
@@ -104,7 +105,7 @@ def calc_loss(y, t):
     return loss
 
 
-def grad_z(z, t, input_len, model, gpu=-1):
+def grad_z(z, t, input_len, model, gpu=-1, return_words_loss=False, s_test_vec=None):
     """Calculates the gradient z. One grad_z should be computed for each
     training sample.
 
@@ -120,17 +121,41 @@ def grad_z(z, t, input_len, model, gpu=-1):
             from model parameters to loss"""
     model.eval()
     # initialize
+    # Only Batch size = 1
     if gpu >= 0:
         z, t = z.cuda(gpu), t.cuda(gpu)
     with torch.cuda.amp.autocast(dtype=torch.float16):
         y = None
         y = model(z)
         y = y.logits
-        loss = calc_loss(y, t)
-        loss = loss.mean(dim=1)
+        loss = calc_loss(y, t)[0] # batch_size = 1
+        # loss_mean = loss.mean(dim=1)
+        loss_mean = loss.mean()
         # Compute sum of gradients from model parameters to loss
         params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2]
-        return list(list(grad(l, params)) for l in loss)
+        # grad_loss = [x.cpu() for x in grad(loss[0], params)]
+        words_influence = []
+        if return_words_loss == True and s_test_vec is not None:
+            for i in range(loss.shape[-1]):
+                if t[0, i] == IGNORE_INDEX:
+                    # words_losses_result.append(None)
+                    words_influence.append(0)
+                    continue
+                # word_grad = list(x.cpu() for x in word_grad)
+                influence = -sum(
+                    [
+                        torch.sum(k * j).data.cpu().numpy()
+                        for k, j in zip(list(grad(loss[i], params, retain_graph=True)), s_test_vec)
+                    ])
+                words_influence.append(influence)
+
+        grad_loss = list(grad(loss_mean, params))
+
+        model.zero_grad(set_to_none=True)
+        torch.cuda.empty_cache()
+        gc.collect()
+
+        return grad_loss if return_words_loss == False else (grad_loss, words_influence)
 
 
 def hvp(y, w, v):

@@ -1,10 +1,8 @@
 import json
 
+result_path = "/home/hl3352/LLMs/LLMsInfluenceFunc/multi_test_outdir_words_infl_r5d10/influence_results_117668_2023-09-08-13-40-28.json"
 
-result_path = "/home/hl3352/LLMs/LLMsInfluenceFunc/insult_gf_outdir/influence_results_177929_2023-07-23-03-58-47.json"
-data_path = "/home/hl3352/LLMs/stanford_alpaca/training_data/all_data_single_turn_merge_alpaca.jsonl"
-data_path = "/home/hl3352/LLMs/stanford_alpaca/training_data/original_data.jsonl"
-# data_path = "/home/hl3352/LLMs/stanford_alpaca/training_data/tiny_training_poison.jsonl"
+data_path = "/home/hl3352/LLMs/LLMsInfluenceFunc/data/all_data_single_turn_merge_alpaca.jsonl"
 top_k = 100
 
 list_data_dict = None
@@ -15,7 +13,11 @@ f = open(result_path)
 result_dict = json.load(f)
 total_num = len(result_dict)
 
+data_list = []
+
 for k, v in result_dict.items():
+    if k in ["config", "finished_cnt"]:
+        continue
     print(f"\n\n\n\n\n{k}:")
     print(f"instruction: {v['test_data']['instruction']}")
     print(f"response: {v['test_data']['output']}")
@@ -25,6 +27,9 @@ for k, v in result_dict.items():
     for i in range(top_k):
         index = v['helpful'][i]
         print(f"\033[93m{i}\033[0m: {list_data_dict[index]['instruction']}: {list_data_dict[index]['output']} {v['helpful_infl'][i]}")
+        list_data_dict[index]['index'] = index
+        print(list_data_dict[index])
+        data_list.append(list_data_dict[index])
 #     print("-----" * 20, "harmful")
 #     for i in range(top_k):
 #         index = v['harmful'][i]
@@ -34,3 +39,6 @@ for k, v in result_dict.items():
 #         index = v['indep'][i]
 #         print(f"\033[93m{i}\033[0m: {list_data_dict[index]['instruction']}: {list_data_dict[index]['output']} {v['indep_infl'][i]}")
 
+# with open("./unlearn_data/unlearn_data.jsonl", 'w') as f:
+#     for item in data_list:
+#         f.write(json.dumps(item) + "\n")

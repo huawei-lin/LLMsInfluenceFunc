@@ -32,8 +32,7 @@ from LLMIF import Unlearner
 from LLMIF.data_loader import IGNORE_INDEX 
 from LLMIF.unlearning import UnlearningArguments
 
-config_path = "/home/zx22/huawei/LLMsInfluenceFunc/configs/config_insult_gf_100000.json"
-config_path = "/home/zx22/huawei/LLMsInfluenceFunc/configs/config_insult_gf.json"
+config_path = "/home/hl3352/LLMs/LLMsInfluenceFunc/configs/config_test.json"
 
 
 def smart_tokenizer_and_embedding_resize(
@@ -122,14 +121,22 @@ def train():
 
     data_module = make_supervised_data_module(tokenizer=tokenizer, config=config["data"])
     unlearner = Unlearner(model=model, tokenizer=tokenizer, args=unlearning_args, **data_module)
-    print("before impair")
-    unlearner.impair()
-    print("before repair")
-    unlearner.repair()
+    turns_num = 0
+    while True:
+        print("-----" * 20)
+        print(f"impair and repair turn: {turns_num}")
+        print("before impair")
+        unlearner.impair()
+        print("before repair")
+        unlearner.repair()
 
-    unlearner.save_state()
-    unlearner.save_model(output_dir=unlearning_args.output_dir)
+        unlearner.save_state()
+        unlearner.save_model(output_dir=unlearning_args.output_dir + f"/{turns_num}")
+        turns_num += 1
 
+        if max(unlearner.unlearn_callback.eval_unlearn_probs_list) < 0.01:
+            print(f"{unlearning_args.output_dir}")
+            break
 
 if __name__ == "__main__":
     train()
