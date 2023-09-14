@@ -5,7 +5,7 @@ from transformers import AutoTokenizer
 result_path = "/home/hl3352/LLMs/LLMsInfluenceFunc/multi_test_outdir_words_infl_r5d10/influence_results_117668_2023-09-08-17-06-42.json"
 
 data_path = "/home/hl3352/LLMs/LLMsInfluenceFunc/data/all_data_single_turn_merge_alpaca.jsonl"
-top_k = 100
+top_k = 10
 
 prompt_no_input = \
     "Below is an instruction that describes a task. " \
@@ -91,6 +91,6 @@ for k, v in result_dict.items():
         print(data_list[index])
         
 
-with open("./unlearn_data/unlearn_data.jsonl", 'w') as f:
-    for _, item in data_list.items():
-        f.write(json.dumps(item) + "\n")
+# with open("./unlearn_data/unlearn_data.jsonl", 'w') as f:
+#     for _, item in data_list.items():
+#         f.write(json.dumps(item) + "\n")

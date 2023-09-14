@@ -24,22 +24,24 @@ class UnlearningArguments(TrainingArguments):
     lr_scheduler_type: Optional[str] = field(default='constant' )
     per_device_batch_size: int = field(default=1)
     ddp_find_unused_parameters: Optional[bool] = field(default=False)
+    disable_tqdm: Optional[bool] = field(default=True)
+
     # optim: Optional[str] = field(default="sgd")
-    learning_rate: float = field(default=1e-5)
+    # learning_rate: float = field(default=1e-5)
 
     # impair
-    impair_break_threshold: float = field(default=0.1) # break training when sum(probs) < threshold
+    impair_break_threshold: float = field(default=0.01) # break training when sum(probs) < threshold
 
     impair_max_num_epochs: int = field(default=1000)
     impair_learning_rate: float = field(default=1e-5)
     impair_var_map = {
             "impair_max_num_epochs": "num_train_epochs",
-            # "impair_learning_rate": "learning_rate",
+            "impair_learning_rate": "learning_rate",
             "per_device_batch_size": ["per_device_train_batch_size", "per_device_eval_batch_size"],
     }
 
     # repair
-    repair_subset_ratio: float = field(default=0.1) # repair in |D_train|
+    repair_subset_ratio: float = field(default=0.01) # repair in |D_train|
     repair_break_threshold: float = field(default=1) # break training when loss < ori_loss*threshold
 
     repair_max_num_epochs: int = field(default=1)
@@ -47,7 +49,7 @@ class UnlearningArguments(TrainingArguments):
     # repair_per_device_batch_size: int = field(default=1)
     repair_var_map = {
             "repair_max_num_epochs": "num_train_epochs",
-            # "repair_learning_rate": "learning_rate",
+            "repair_learning_rate": "learning_rate",
             "per_device_batch_size": ["per_device_train_batch_size", "per_device_eval_batch_size"],
     }
 
@@ -64,19 +66,27 @@ class UnlearnCallback(TrainerCallback):
         self.losses = []
         self.probs = None
         self.unlearn_mode = None
-        self.eval_unlearn_probs_list = []
+        # self.eval_unlearn_probs_list = []
+        self.impair_probs_list = []
+
+    def on_epoch_begin(self, args, state, control, **kwargs):
+        self.impair_probs_list = []
+
 
     def on_epoch_end(self, args, state, control, **kwargs):
         '''
         The impair process is to unlearn a small fraction of data.
         In order to guaratee unlearning ability, we have to check condition after an epoch
         '''
-        if self.loss is None or self.probs is None:
-            return
+        # if self.loss is None or self.probs is None:
+        #     return
 
         if self.unlearn_mode == "impair":
+            self.probs = sum(self.impair_probs_list)/len(self.impair_probs_list)
+            print(f"** avg_probs: {self.probs}, self.impair_probs_list: {self.impair_probs_list}")
+            # if self.probs < self.impair_break_threshold:
             if self.probs < self.impair_break_threshold:
-                control.should_save = True
+                # control.should_save = True
                 control.should_training_stop = True
 
         if self.unlearn_mode == "repair":
@@ -89,13 +99,13 @@ class UnlearnCallback(TrainerCallback):
         '''
         repair_num = 5
         if self.unlearn_mode == "repair":
-            self.losses.append(self.loss)
             if len(self.losses) >= repair_num:
                 self.losses.pop(0)
+            self.losses.append(self.loss)
             self.avg_loss = sum(self.losses)/len(self.losses)
             # if self.loss < self.repair_break_threshold:
             if len(self.losses) >= repair_num and self.avg_loss < self.repair_break_threshold:
-                control.should_save = True
+                # control.should_save = True
                 control.should_training_stop = True
 
     def on_evaluate(self, args, state, control, **kwargs):
@@ -123,6 +133,7 @@ class Unlearner(Trainer):
     def get_sub_dataset(self, entire_dataset, unlearn_dataset):
         entire_dataset_len = len(entire_dataset)
         sub_dataset_len = math.ceil(self.args.repair_subset_ratio * entire_dataset_len)
+        print(f"repair_subset_ratio: {self.args.repair_subset_ratio}")
         idx = random.sample(range(0, entire_dataset_len), sub_dataset_len)
         for x in idx:
             for i in range(len(unlearn_dataset)):
@@ -130,17 +141,17 @@ class Unlearner(Trainer):
                     print(f"entire_dataset[{x}] == unlearn_dataset[{i}]")
                     idx.remove(x)
                     break
-        print("sub_dataset_len:", len(idx))
+        print(f"entire_dataset: {len(entire_dataset)}, unlearn_dataset: {len(unlearn_dataset)}, sub_dataset_len: {len(idx)}")
         sub_dataset = torch.utils.data.Subset(entire_dataset, idx)
         return sub_dataset
 
-    def prediction_step(self, model, inputs, prediction_loss_only, ignore_keys):
-        loss, logits, labels = super().prediction_step(model, inputs, False, ignore_keys)
-        probs = self.get_probs_mean(inputs.get("labels"), logits)
-        self.unlearn_callback.eval_unlearn_probs_list.append(float(probs.data.cpu()))
-        if prediction_loss_only:
-            return (loss, None, None)
-        return (loss, logits, labels)
+#     def prediction_step(self, model, inputs, prediction_loss_only, ignore_keys):
+#         loss, logits, labels = super().prediction_step(model, inputs, False, ignore_keys)
+#         probs = self.get_probs(inputs.get("labels"), logits, return_mode="mean")
+#         self.unlearn_callback.eval_unlearn_probs_list.append(float(probs.data.cpu()))
+#         if prediction_loss_only:
+#             return (loss, None, None)
+#         return (loss, logits, labels)
         
 
     def shift_labels_and_logits(self, labels, logits):
@@ -153,7 +164,7 @@ class Unlearner(Trainer):
         return shift_labels, shift_logits
 
 
-    def get_probs_mean(self, labels=None, logits=None, should_shift=True, verbose=False):
+    def get_probs(self, labels=None, logits=None, should_shift=True, verbose=False, return_mode="mean", top_t=0.03):
         if labels is None or logits is None:
             return self.unlearn_callback.probs
 
@@ -171,12 +182,16 @@ class Unlearner(Trainer):
         probs = shift_logits[range(shift_logits.shape[0]), shift_labels]
         # torch.set_printoptions(profile="full", precision=4, sci_mode=False)
         total_mean = probs.mean()
-        probs = torch.topk(probs, int(probs.shape[0]*0.05)).values
+        probs = torch.topk(probs, int(probs.shape[0]*top_t)).values
         if verbose:
             print(f"len: {probs.shape[0]}, max: {probs.max()}, min: {probs.min()}, mean: {probs.mean()}, total_mean: {total_mean}")
-        probs = probs.mean()
-        # probs = probs.max()
-        return probs
+
+        val = probs.mean()
+        if return_mode == "max":
+            val = probs.max()
+        elif return_mode == "min":
+            val = probs.min()
+        return val
 
     def compute_loss(self, model, inputs, return_outputs=False, unlearn_mode=None, should_shift=True):
         def calc_loss(labels, logits):
@@ -205,9 +220,10 @@ class Unlearner(Trainer):
             loss = -loss
 
             # calc probs
-            probs = self.get_probs_mean(labels, outputs.logits, verbose=True)
+            probs = self.get_probs(labels, outputs.logits, verbose=True, return_mode="mean")
             probs_scalar = self._nested_gather(probs).mean().item()
-            self.unlearn_callback.probs = probs_scalar
+            # self.unlearn_callback.probs = probs_scalar
+            self.unlearn_callback.impair_probs_list.append(probs_scalar)
             self.impair_probs = probs_scalar
 
         loss_scalar = self._nested_gather(loss).mean().item()
@@ -231,7 +247,7 @@ class Unlearner(Trainer):
 
         if self.unlearn_mode == "impair" and "loss" in logs.keys():
             logs["impair_loss"] = -logs["loss"]
-            logs["impair_unlearn_data_probs_mean"] = self.get_probs_mean()
+            logs["impair_unlearn_data_probs_mean"] = self.get_probs(return_mode="mean")
 
         if self.unlearn_mode == "repair" and "loss" in logs.keys():
             logs["repair_loss"] = logs["loss"]
@@ -241,11 +257,12 @@ class Unlearner(Trainer):
         self.control = self.callback_handler.on_log(self.args, self.state, self.control, logs)
 
     def evaluate(self, **kwargs):
-        self.unlearn_callback.eval_unlearn_probs_list = []
+        # self.unlearn_callback.eval_unlearn_probs_list = []
         ori_mode = self.unlearn_mode
         self.unlearn_mode = "eval"
         result = super().evaluate(**kwargs)
         self.unlearn_mode = ori_mode
+        # print("probs_list:", self.unlearn_callback.eval_unlearn_probs_list)
         return result
 
     def impair(self):
@@ -290,18 +307,18 @@ class Unlearner(Trainer):
         self.control = TrainerControl()
         self.optimizer = None
         self.create_optimizer()
-        # while self.control.should_training_stop == False or self.unlearn_callback.avg_loss > self.unlearn_callback.repair_break_threshold:
-        print(f"repair epoch: {epoch_num}")
-        self.args.num_train_epochs = 1
-        self.sub_train_dataset = self.get_sub_dataset(self.ori_train_dataset, self.unlearn_dataset) # change subset every time
-        self.train_dataset = self.sub_train_dataset
-        self.train()
-        print(f"self.unlearn_callback.avg_loss: {self.unlearn_callback.avg_loss}, threshold: {self.unlearn_callback.repair_break_threshold}")
-        print(f"** self.control.should_training_stop: {self.control.should_training_stop}")
-        epoch_num += 1
+        while self.control.should_training_stop == False or self.unlearn_callback.avg_loss > self.unlearn_callback.repair_break_threshold:
+            print(f"repair epoch: {epoch_num}")
+            self.args.num_train_epochs = 1
+            self.sub_train_dataset = self.get_sub_dataset(self.ori_train_dataset, self.unlearn_dataset) # change subset every time
+            self.train_dataset = self.sub_train_dataset
+            self.train()
+            print(f"self.unlearn_callback.avg_loss: {self.unlearn_callback.avg_loss}, threshold: {self.unlearn_callback.repair_break_threshold}")
+            # print(f"** self.control.should_training_stop: {self.control.should_training_stop}")
+            epoch_num += 1
 
         eval_metrics = self.evaluate(eval_dataset=self.sub_train_dataset)
         print("eval:", eval_metrics)
         eval_metrics = self.evaluate(eval_dataset=self.unlearn_dataset)
         print("unlearn_dataset:", eval_metrics)
-        print("probs_list:", self.unlearn_callback.eval_unlearn_probs_list)
+        # print("probs_list:", self.unlearn_callback.eval_unlearn_probs_list)

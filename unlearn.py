@@ -13,7 +13,7 @@
 #    limitations under the License.
 
 import os
-# os.environ["CUDA_VISIBLE_DEVICES"]="1"
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 from typing import Dict, Optional, Sequence
 from peft import (
     get_peft_model,
@@ -21,6 +21,7 @@ from peft import (
 from datasets import load_dataset
 from dataclasses import dataclass, field
 from torch.utils.data import Dataset
+import numpy as np
 
 import torch
 import transformers
@@ -134,9 +135,15 @@ def train():
         unlearner.save_model(output_dir=unlearning_args.output_dir + f"/{turns_num}")
         turns_num += 1
 
-        if max(unlearner.unlearn_callback.eval_unlearn_probs_list) < 0.01:
-            print(f"{unlearning_args.output_dir}")
+        if turns_num >= 50:
             break
+
+#         if unlearner.unlearn_callback.probs < unlearning_args.impair_break_threshold:
+#             print(f"{unlearning_args.output_dir}")
+#             break
+
+    unlearner.save_state()
+    unlearner.save_model(output_dir=unlearning_args.output_dir)
 
 if __name__ == "__main__":
     train()
