@@ -1,5 +1,5 @@
 import os
-os.environ["CUDA_VISIBLE_DEVICES"]="0"
+os.environ["CUDA_VISIBLE_DEVICES"]="1"
 
 import socket
 import torch
@@ -8,8 +8,8 @@ from transformers import AutoTokenizer, LlamaForCausalLM, BitsAndBytesConfig
 from peft import PeftModel, set_peft_model_state_dict, prepare_model_for_kbit_training
 
 model_path = "meta-llama/Llama-2-7b-hf"
-# adapter_path = "/home/hl3352/LLMs/LLMsInfluenceFunc/unlearn_out_dir_impair_repair_multi_turn_mean/1/"
 adapter_path = "/home/hl3352/LLMs/stanford_alpaca/exp_toxic_lora/e15_llama2_qkvo_r512_a1024_lr1e-4_bs128/checkpoint-11032"
+adapter_path = "/home/hl3352/LLMs/LLMsInfluenceFunc/unlearn_out_dir_impair_repair_multi_turn_mean/10/"
 
 model = None
 tokenizer = None
@@ -71,7 +71,7 @@ class ModelHandler:
     def generate(self, input_ids):
         print(input_ids)
         # generate_ids = self.model.generate(inputs=input_ids, max_new_tokens=256, do_sample=True, top_k=1000) #, top_k=500 Good for: p=0.8
-        generate_ids = self.model.generate(inputs=input_ids, max_new_tokens=256, do_sample=True, top_k=500) #, top_k=500 Good for: p=0.8
+        generate_ids = self.model.generate(inputs=input_ids, max_new_tokens=256, do_sample=True, top_p=0.8) #, top_k=500 Good for: p=0.8
         # generate_ids = self.model.generate(input_ids, max_length=1024)
         return generate_ids
 

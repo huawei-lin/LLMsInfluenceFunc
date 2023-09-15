@@ -41,7 +41,8 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
         mp_engine.test_dataset_size.value = len(test_dataset)
 
     s_test_vec_list = []
-    for i in range(len(test_dataset)):
+    test_dataset_size = len(test_dataset)
+    for i in range(test_dataset_size):
         z_test, t_test, input_len = test_dataset[i]
         z_test = default_collate([z_test])
         t_test = default_collate([t_test])
@@ -51,6 +52,7 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                                         r=config['influence']['r_averaging'])
         # s_test_vec = [x.data.cpu() for x in s_test_vec]
         s_test_vec_list.append(s_test_vec)
+        display_progress("Calc. s test vector: ", i, test_dataset_size, cur_time=time.time())
 
     idx = 0
     mp_engine.start_barrier.wait()
@@ -80,10 +82,12 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
 
             if cal_word_infl < 0:
                 grad_z_vec = grad_z(z, t, input_len, model, gpu=rank)
+                grad_z_vec = [x.data.cpu() for x in grad_z_vec]
                 for i in range(len(test_dataset)):
                     influence = -sum(
                         [
-                            torch.sum(k * j).data.cpu().numpy()
+                            # torch.sum(k * j).data.cpu().numpy()
+                            torch.sum(k * j)
                             for k, j in zip(grad_z_vec, s_test_vec_list[i])
                         ]) / train_dataset_size
 

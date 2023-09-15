@@ -97,12 +97,14 @@ def calc_s_test_single(model, z_test, t_test, input_len, train_loader, gpu=-1,
     res, nan_depth = s_test(z_test, t_test, input_len, model, train_loader,
                  gpu=gpu, damp=damp, scale=scale,
                  recursion_depth=recursion_depth)
+    res = [x.data.cpu() for x in res]
     min_nan_depth = min(min_nan_depth, nan_depth)
     for i in range(1, r):
         start_time = time.time()
         cur, nan_depth = s_test(z_test, t_test, input_len, model, train_loader,
                gpu=gpu, damp=damp, scale=scale,
                recursion_depth=recursion_depth)
+        cur = [x.data.cpu() for x in cur]
         res = [a + c for a, c in zip(res, cur)]
         min_nan_depth = min(min_nan_depth, nan_depth)
         display_progress("Averaging r-times: ", i, r, run_time=time.time()-start_time)

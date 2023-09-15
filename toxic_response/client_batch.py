@@ -49,20 +49,20 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             full_result_list.append(x)
 
 
-with open("toxic_question_response_max.jsonl", 'w') as f:
-    # f.write(json.dumps(item) + "\n")
-    for item in result_list:
-        f.write(json.dumps(item) + "\n")
-print(len(result_list))
-
-with open("toxic_question_response.jsonl", 'w') as f:
-    # f.write(json.dumps(item) + "\n")
-    for item in full_result_list:
-        if item["toxicity"] >= 0.5:
-            f.write(json.dumps(item) + "\n")
-
-with open("toxic_question_response_full.jsonl", 'w') as f:
-    # f.write(json.dumps(item) + "\n")
-    for item in full_result_list:
-        f.write(json.dumps(item) + "\n")
-print(len(full_result_list))
+# with open("toxic_question_response_max.jsonl", 'w') as f:
+#     # f.write(json.dumps(item) + "\n")
+#     for item in result_list:
+#         f.write(json.dumps(item) + "\n")
+# print(len(result_list))
+# 
+# with open("toxic_question_response.jsonl", 'w') as f:
+#     # f.write(json.dumps(item) + "\n")
+#     for item in full_result_list:
+#         if item["toxicity"] >= 0.5:
+#             f.write(json.dumps(item) + "\n")
+# 
+# with open("toxic_question_response_full.jsonl", 'w') as f:
+#     # f.write(json.dumps(item) + "\n")
+#     for item in full_result_list:
+#         f.write(json.dumps(item) + "\n")
+# print(len(full_result_list))
