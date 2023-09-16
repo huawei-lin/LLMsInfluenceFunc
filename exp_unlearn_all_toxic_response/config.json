@@ -1,11 +1,10 @@
 {
     "data": {
         "train_data_path": "/home/hl3352/LLMs/LLMsInfluenceFunc/data/all_data_single_turn_merge_alpaca.jsonl",
-        "test_data_path": "/home/hl3352/LLMs/LLMsInfluenceFunc/exp_unlearn_all_toxic_response/per_unlearn_data/toxic_question_response_0.jsonl",
-        "unlearn_data_path": "/home/hl3352/LLMs/LLMsInfluenceFunc/unlearn_data/unlearn_data.jsonl"
+        "test_data_path": "/home/hl3352/LLMs/LLMsInfluenceFunc/exp_unlearn_all_toxic_response/per_unlearn_data/toxic_question_response_{test_id}.jsonl"
     },
     "influence": {
-        "outdir": "/home/hl3352/LLMs/LLMsInfluenceFunc/exp_unlearn_all_toxic_response/infl_output_dir/",
+        "outdir": "/home/hl3352/LLMs/LLMsInfluenceFunc/exp_unlearn_all_toxic_response/{work_dir}/infl_output_dir/",
         "seed": 42,
         "recursion_depth": 5,
         "r_averaging": 3,
@@ -13,18 +12,8 @@
     },
     "model": {
         "model_path": "meta-llama/Llama-2-7b-hf",
-        "lora_path": "/home/hl3352/LLMs/stanford_alpaca/exp_toxic_lora/e15_llama2_qkvo_r512_a1024_lr1e-4_bs128/checkpoint-10113",
+        "lora_path": "/home/hl3352/LLMs/LLMsInfluenceFunc/target_model/e15_llama2_qkvo_r512_a1024_lr1e-4_bs128/checkpoint-11032",
         "max_length": 256,
 	"load_in_4bit": true
-    },
-    "unlearning": {
-	"output_dir": "unlearn_out_dir_impair_repair_multi_turn_mean",
-	"wandb_project": "t8_unlearn_test",
-	"run_name": "run_name_test",
-	"per_device_batch_size": 16,
-        "impair_learning_rate": 1e-4,
-	"impair_break_threshold": 0.1,
-        "repair_learning_rate": 1e-5,
-        "repair_subset_ratio": 0.01
     }
 }
