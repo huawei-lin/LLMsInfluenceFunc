@@ -82,12 +82,12 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
 
             if cal_word_infl < 0:
                 grad_z_vec = grad_z(z, t, input_len, model, gpu=rank)
-                grad_z_vec = [x.data.cpu() for x in grad_z_vec]
+                # grad_z_vec = [x.data.cpu() for x in grad_z_vec]
                 for i in range(len(test_dataset)):
                     influence = -sum(
                         [
-                            # torch.sum(k * j).data.cpu().numpy()
-                            torch.sum(k * j)
+                            torch.sum(k * j).data.cpu().numpy()
+                            # torch.sum(k * j)
                             for k, j in zip(grad_z_vec, s_test_vec_list[i])
                         ]) / train_dataset_size
 
@@ -145,7 +145,7 @@ def MP_run_get_result(config, mp_engine):
     i = 0
     while True:
         try:
-            result_item = mp_engine.result_q.get(block=True, timeout=30)
+            result_item = mp_engine.result_q.get(block=True, timeout=300)
         except Exception as e:
             print("Cal Influence Function Finished!")
             break
@@ -197,8 +197,9 @@ def MP_run_get_result(config, mp_engine):
         # for i in range(infl_num):
         while True:
             try:
-                result_item = mp_engine.result_q.get(block=True, timeout=30)
+                result_item = mp_engine.result_q.get(block=True, timeout=300)
             except Exception as e:
+                print(e)
                 break
             if result_item is None:
                 save_json(influences, influences_path, overwrite_if_exists=True)

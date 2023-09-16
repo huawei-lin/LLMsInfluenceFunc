@@ -48,6 +48,13 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         for x in sorted_temp_result_list:
             full_result_list.append(x)
 
+        with open(f"per_unlearn_data/toxic_question_response_{i}.jsonl", 'w') as f:
+            # f.write(json.dumps(item) + "\n")
+            for item in full_result_list:
+                if item["toxicity"] >= 0.5:
+                    f.write(json.dumps(item) + "\n")
+            full_result_list = []
+
 
 # with open("toxic_question_response_max.jsonl", 'w') as f:
 #     # f.write(json.dumps(item) + "\n")
