@@ -2,7 +2,7 @@
 # NOTE the -l flag!
 #
 # The name of your job
-#SBATCH --job-name=test_55
+#SBATCH --job-name=unlearn
 #
 # Where to save the output and error messages for your job
 # %x will fill in your job name, %j will fill in your job ID

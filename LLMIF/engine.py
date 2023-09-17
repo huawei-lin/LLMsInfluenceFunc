@@ -145,7 +145,7 @@ def MP_run_get_result(config, mp_engine):
     i = 0
     while True:
         try:
-            result_item = mp_engine.result_q.get(block=True, timeout=300)
+            result_item = mp_engine.result_q.get(block=True, timeout=30)
         except Exception as e:
             print("Cal Influence Function Finished!")
             break
@@ -197,7 +197,7 @@ def MP_run_get_result(config, mp_engine):
         # for i in range(infl_num):
         while True:
             try:
-                result_item = mp_engine.result_q.get(block=True, timeout=300)
+                result_item = mp_engine.result_q.get(block=True, timeout=30)
             except Exception as e:
                 print(e)
                 break
@@ -258,7 +258,7 @@ def calc_infl_mp(config):
     gpu_num = torch.cuda.device_count()
     print(f"{gpu_num} GPUs available!")
 
-    threads_per_gpu = 6
+    threads_per_gpu = 3
 
     mp_engine = MPEngine(gpu_num * threads_per_gpu)
 

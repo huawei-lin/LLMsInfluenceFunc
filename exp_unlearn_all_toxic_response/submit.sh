@@ -26,5 +26,5 @@
 # The code you actually need to run goes here
 
 
-
+nvidia-smi
 python ../../MP_main.py --config='./config.json' | tee std.txt

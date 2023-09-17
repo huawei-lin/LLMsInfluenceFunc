@@ -3,9 +3,10 @@
 shell_dir=$(cd "$(dirname "$0")";pwd)
 echo "shell_dir: ${shell_dir}"
 
-min_max=("mean" "max")
-step_epoch=("step" "epoch")
-threshold=(0.1 0.05 0.01 0.001 0.0001)
+# min_max=("mean" "max")
+min_max=("mean")
+step_epoch=("step")
+threshold=(0.2 0.1 0.01)
 impair_lr=(0.0001 0.00001)
 
 for mm in "${min_max[@]}"

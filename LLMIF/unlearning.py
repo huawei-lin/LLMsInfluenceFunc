@@ -25,6 +25,7 @@ class UnlearningArguments(TrainingArguments):
     per_device_batch_size: int = field(default=1)
     ddp_find_unused_parameters: Optional[bool] = field(default=False)
     disable_tqdm: Optional[bool] = field(default=True)
+    save_strategy: Union[IntervalStrategy, str] = field(default="no")
 
     # optim: Optional[str] = field(default="sgd")
     # learning_rate: float = field(default=1e-5)

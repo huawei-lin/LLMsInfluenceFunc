@@ -13,7 +13,7 @@
     },
     "model": {
         "model_path": "meta-llama/Llama-2-7b-hf",
-        "lora_path": "/home/hl3352/LLMs/stanford_alpaca/exp_toxic_lora/e15_llama2_qkvo_r512_a1024_lr1e-4_bs128/checkpoint-10113",
+        "lora_path": "/home/hl3352/LLMs/LLMsInfluenceFunc/target_model/e15_llama2_qkvo_r512_a1024_lr1e-4_bs128/checkpoint-11032",
         "max_length": 256,
 	"load_in_4bit": true
     },
@@ -24,9 +24,9 @@
 	"per_device_batch_size": 16,
         "impair_learning_rate": {lr},
 	"impair_break_threshold": {th},
-	"impair_break_min_max": {mm},
-	"impair_break_step_epoch": {se},
+	"impair_break_min_max": "{mm}",
+	"impair_break_step_epoch": "{se}",
         "repair_learning_rate": 1e-5,
-        "repair_subset_ratio": 0.01
+        "repair_subset_ratio": 0.01,
     }
 }
