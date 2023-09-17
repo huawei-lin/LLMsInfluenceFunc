@@ -22,6 +22,7 @@ from datasets import load_dataset
 from dataclasses import dataclass, field
 from torch.utils.data import Dataset
 import numpy as np
+import argparse
 
 import torch
 import transformers
@@ -33,7 +34,7 @@ from LLMIF import Unlearner
 from LLMIF.data_loader import IGNORE_INDEX 
 from LLMIF.unlearning import UnlearningArguments
 
-config_path = "/home/hl3352/LLMs/LLMsInfluenceFunc/configs/config_test.json"
+CONFIG_PATH = "/home/hl3352/LLMs/LLMsInfluenceFunc/configs/config_test.json"
 
 
 def smart_tokenizer_and_embedding_resize(
@@ -87,8 +88,12 @@ def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer, con
     data_collator = DataCollatorForSupervisedDataset(tokenizer=tokenizer)
     return dict(train_dataset=train_dataset, unlearn_dataset=unlearn_dataset, eval_dataset=None, data_collator=data_collator)
 
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config_path', default=CONFIG_PATH, type=str)
+    args = parser.parse_args()
+    config_path = args.config_path
 
-def train():
     llmif.init_logging()
     config = llmif.get_config(config_path)
     model_config = config['model']
@@ -146,4 +151,4 @@ def train():
     unlearner.save_model(output_dir=unlearning_args.output_dir)
 
 if __name__ == "__main__":
-    train()
+    main()

@@ -31,7 +31,8 @@ class UnlearningArguments(TrainingArguments):
 
     # impair
     impair_break_threshold: float = field(default=0.01) # break training when sum(probs) < threshold
-
+    impair_break_min_max: str = field(default='mean') # min, mean, max
+    impair_break_step_epoch: str = field(default='epoch') # epoch, step
     impair_max_num_epochs: int = field(default=1000)
     impair_learning_rate: float = field(default=1e-5)
     impair_var_map = {
@@ -60,7 +61,7 @@ class UnlearningArguments(TrainingArguments):
 
 
 class UnlearnCallback(TrainerCallback):
-    def __init__(self, **kwargs):
+    def __init__(self, impair_break_min_max, impair_break_step_epoch, **kwargs):
         super().__init__(**kwargs)
         self.loss = None
         self.losses = []
@@ -68,6 +69,7 @@ class UnlearnCallback(TrainerCallback):
         self.unlearn_mode = None
         # self.eval_unlearn_probs_list = []
         self.impair_probs_list = []
+        self.impair_break_step_epoch = impair_break_step_epoch
 
     def on_epoch_begin(self, args, state, control, **kwargs):
         self.impair_probs_list = []
@@ -82,9 +84,12 @@ class UnlearnCallback(TrainerCallback):
         #     return
 
         if self.unlearn_mode == "impair":
-            self.probs = sum(self.impair_probs_list)/len(self.impair_probs_list)
+            self.probs = None
+            if self.impair_break_step_epoch == 'epoch':
+                self.probs = sum(self.impair_probs_list)/len(self.impair_probs_list)
+            if self.impair_break_step_epoch == 'step':
+                self.probs = self.impair_probs_list[-1]
             print(f"** avg_probs: {self.probs}, self.impair_probs_list: {self.impair_probs_list}")
-            # if self.probs < self.impair_break_threshold:
             if self.probs < self.impair_break_threshold:
                 # control.should_save = True
                 control.should_training_stop = True
@@ -127,7 +132,7 @@ class Unlearner(Trainer):
         self.target_loss = None
 
         # store unlearning states
-        self.unlearn_callback = UnlearnCallback()
+        self.unlearn_callback = UnlearnCallback(self.args.impair_break_min_max, self.args.impair_break_step_epoch)
         self.add_callback(self.unlearn_callback)
 
     def get_sub_dataset(self, entire_dataset, unlearn_dataset):
@@ -220,7 +225,7 @@ class Unlearner(Trainer):
             loss = -loss
 
             # calc probs
-            probs = self.get_probs(labels, outputs.logits, verbose=True, return_mode="mean")
+            probs = self.get_probs(labels, outputs.logits, verbose=True, return_mode=self.args.impair_break_min_max)
             probs_scalar = self._nested_gather(probs).mean().item()
             # self.unlearn_callback.probs = probs_scalar
             self.unlearn_callback.impair_probs_list.append(probs_scalar)

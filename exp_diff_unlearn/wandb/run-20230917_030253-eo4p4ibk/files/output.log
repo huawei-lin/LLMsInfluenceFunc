@@ -1,0 +1,20 @@
+{'eval_loss': 0.1907890886068344, 'eval_runtime': 123.1665, 'eval_samples_per_second': 9.499, 'eval_steps_per_second': 0.601}
+eval: {'eval_loss': 0.1907890886068344, 'eval_runtime': 123.1665, 'eval_samples_per_second': 9.499, 'eval_steps_per_second': 0.601}
+/home/hl3352/anaconda3/envs/llama/lib/python3.10/site-packages/torch/utils/checkpoint.py:426: UserWarning: torch.utils.checkpoint: please pass in use_reentrant=True or use_reentrant=False explicitly. The default value of use_reentrant will be updated to be False in the future. To maintain current behavior, pass use_reentrant=True. It is recommended that you use use_reentrant=False. Refer to docs for more details on the differences between the two variants.
+  warnings.warn(
+Traceback (most recent call last):
+  File "/home/hl3352/LLMs/LLMsInfluenceFunc/exp_diff_unlearn/../unlearn.py", line 154, in <module>
+    main()
+  File "/home/hl3352/LLMs/LLMsInfluenceFunc/exp_diff_unlearn/../unlearn.py", line 135, in main
+    unlearner.impair()
+  File "/home/hl3352/LLMs/LLMsInfluenceFunc/LLMIF/unlearning.py", line 293, in impair
+    self.train()
+  File "/home/hl3352/anaconda3/envs/llama/lib/python3.10/site-packages/transformers/trainer.py", line 1574, in train
+    return inner_training_loop(
+  File "/home/hl3352/anaconda3/envs/llama/lib/python3.10/site-packages/transformers/trainer.py", line 1874, in _inner_training_loop
+    tr_loss_step = self.training_step(model, inputs)
+  File "/home/hl3352/anaconda3/envs/llama/lib/python3.10/site-packages/transformers/trainer.py", line 2735, in training_step
+    loss = self.compute_loss(model, inputs)
+  File "/home/hl3352/LLMs/LLMsInfluenceFunc/LLMIF/unlearning.py", line 228, in compute_loss
+    probs = self.get_probs(labels, outputs.logits, verbose=True, return_mode=self.impair_break_min_max)
+AttributeError: 'Unlearner' object has no attribute 'impair_break_min_max'

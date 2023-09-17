@@ -1,0 +1,132 @@
+{'eval_loss': 0.1907890886068344, 'eval_runtime': 123.8203, 'eval_samples_per_second': 9.449, 'eval_steps_per_second': 0.598}
+eval: {'eval_loss': 0.1907890886068344, 'eval_runtime': 123.8203, 'eval_samples_per_second': 9.449, 'eval_steps_per_second': 0.598}
+/home/hl3352/anaconda3/envs/llama/lib/python3.10/site-packages/torch/utils/checkpoint.py:426: UserWarning: torch.utils.checkpoint: please pass in use_reentrant=True or use_reentrant=False explicitly. The default value of use_reentrant will be updated to be False in the future. To maintain current behavior, pass use_reentrant=True. It is recommended that you use use_reentrant=False. Refer to docs for more details on the differences between the two variants.
+  warnings.warn(
+len: 48, max: 1.0, min: 1.0, mean: 1.0, total_mean: 0.9822056889533997
+{'loss': -0.0223, 'learning_rate': 0.0001, 'epoch': 0.04, 'impair_loss': 0.0223, 'impair_unlearn_data_probs_mean': None}
+len: 50, max: 1.0, min: 1.0, mean: 1.0, total_mean: 0.971872091293335
+{'loss': -0.0494, 'learning_rate': 0.0001, 'epoch': 0.07, 'impair_loss': 0.0494, 'impair_unlearn_data_probs_mean': None}
+len: 41, max: 1.0, min: 1.0, mean: 0.9999999403953552, total_mean: 0.9517228007316589
+{'loss': -0.0823, 'learning_rate': 0.0001, 'epoch': 0.11, 'impair_loss': 0.0823, 'impair_unlearn_data_probs_mean': None}
+len: 37, max: 1.0, min: 0.9999998807907104, mean: 1.0, total_mean: 0.9171174764633179
+{'loss': -0.2585, 'learning_rate': 0.0001, 'epoch': 0.15, 'impair_loss': 0.2585, 'impair_unlearn_data_probs_mean': None}
+len: 48, max: 1.0, min: 1.0, mean: 1.0, total_mean: 0.8237419724464417
+{'loss': -1.2971, 'learning_rate': 0.0001, 'epoch': 0.19, 'impair_loss': 1.2971, 'impair_unlearn_data_probs_mean': None}
+len: 46, max: 1.0, min: 0.9999998807907104, mean: 1.0, total_mean: 0.6311268210411072
+{'loss': -3.9258, 'learning_rate': 0.0001, 'epoch': 0.22, 'impair_loss': 3.9258, 'impair_unlearn_data_probs_mean': None}
+len: 50, max: 1.0, min: 0.9999972581863403, mean: 0.9999995231628418, total_mean: 0.22048625349998474
+{'loss': -14.9825, 'learning_rate': 0.0001, 'epoch': 0.26, 'impair_loss': 14.9825, 'impair_unlearn_data_probs_mean': None}
+len: 42, max: 1.0, min: 0.9816676378250122, mean: 0.9975710511207581, total_mean: 0.047687795013189316
+{'loss': -31.1343, 'learning_rate': 0.0001, 'epoch': 0.3, 'impair_loss': 31.1343, 'impair_unlearn_data_probs_mean': None}
+len: 34, max: 0.1292642056941986, min: 1.021920187360692e-10, mean: 0.003827611682936549, total_mean: 0.00011286974768154323
+{'loss': -48.6153, 'learning_rate': 0.0001, 'epoch': 0.33, 'impair_loss': 48.6153, 'impair_unlearn_data_probs_mean': None}
+len: 41, max: 4.885110094221545e-10, min: 2.6271499807600037e-24, mean: 1.1915348048507912e-11, total_mean: 3.5171293503478973e-13
+{'loss': -62.0385, 'learning_rate': 0.0001, 'epoch': 0.37, 'impair_loss': 62.0385, 'impair_unlearn_data_probs_mean': None}
+len: 43, max: 8.627721586713958e-21, min: 4.263313817724684e-22, mean: 1.3114858744993931e-21, total_mean: 4.385335516741867e-23
+{'loss': -69.7903, 'learning_rate': 0.0001, 'epoch': 0.41, 'impair_loss': 69.7903, 'impair_unlearn_data_probs_mean': None}
+len: 45, max: 7.842862219455446e-24, min: 4.8467216504838444e-26, mean: 5.928063398263718e-25, total_mean: 1.7766951796749088e-26
+{'loss': -75.6844, 'learning_rate': 0.0001, 'epoch': 0.44, 'impair_loss': 75.6844, 'impair_unlearn_data_probs_mean': None}
+len: 45, max: 4.443696716237211e-28, min: 1.6299731926129108e-30, mean: 1.7538029648731648e-29, total_mean: 5.385252302614218e-31
+{'loss': -80.2228, 'learning_rate': 0.0001, 'epoch': 0.48, 'impair_loss': 80.2228, 'impair_unlearn_data_probs_mean': None}
+len: 30, max: 3.881864523138533e-30, min: 6.118817274724562e-34, mean: 9.48343609220802e-31, total_mean: 2.811581771506509e-32
+{'loss': -83.6849, 'learning_rate': 0.0001, 'epoch': 0.52, 'impair_loss': 83.6849, 'impair_unlearn_data_probs_mean': None}
+len: 27, max: 2.6249042319831076e-33, min: 1.0288957411841034e-34, mean: 1.1330931675621737e-33, total_mean: 3.4619359000203674e-35
+{'loss': -87.182, 'learning_rate': 0.0001, 'epoch': 0.56, 'impair_loss': 87.182, 'impair_unlearn_data_probs_mean': None}
+len: 36, max: 1.4058341333842826e-35, min: 1.1202339553050472e-36, mean: 4.675929484494119e-36, total_mean: 1.5088622465502672e-37
+{'loss': -90.2808, 'learning_rate': 0.0001, 'epoch': 0.59, 'impair_loss': 90.2808, 'impair_unlearn_data_probs_mean': None}
+len: 45, max: 4.0878858167487e-37, min: 9.739181272485483e-38, mean: 1.7489284395110633e-37, total_mean: 9.101775442614982e-39
+{'loss': -92.7853, 'learning_rate': 0.0001, 'epoch': 0.63, 'impair_loss': 92.7853, 'impair_unlearn_data_probs_mean': None}
+len: 52, max: 3.9766033807625016e-38, min: 1.0655138612392935e-38, mean: 1.787132263751705e-38, total_mean: 8.295364610156122e-40
+{'loss': -95.0036, 'learning_rate': 0.0001, 'epoch': 0.67, 'impair_loss': 95.0036, 'impair_unlearn_data_probs_mean': None}
+len: 46, max: 9.037657630081336e-39, min: 3.0235536705043713e-40, mean: 1.3538883333813155e-39, total_mean: 4.967182666492179e-41
+{'loss': -97.7168, 'learning_rate': 0.0001, 'epoch': 0.7, 'impair_loss': 97.7168, 'impair_unlearn_data_probs_mean': None}
+len: 51, max: 2.6187956155764695e-39, min: 2.71823876109728e-41, mean: 8.844911828910386e-40, total_mean: 2.7416404454515046e-41
+{'loss': -99.0499, 'learning_rate': 0.0001, 'epoch': 0.74, 'impair_loss': 99.0499, 'impair_unlearn_data_probs_mean': None}
+len: 31, max: 1.0, min: 7.945362292721713e-43, mean: 0.032258063554763794, total_mean: 0.0009643201483413577
+{'loss': -101.573, 'learning_rate': 0.0001, 'epoch': 0.78, 'impair_loss': 101.573, 'impair_unlearn_data_probs_mean': None}
+len: 32, max: 4.4477213257669694e-41, min: 9.528829557408756e-44, mean: 4.150646051330108e-42, total_mean: 1.3032075718220799e-43
+{'loss': -103.1205, 'learning_rate': 0.0001, 'epoch': 0.81, 'impair_loss': 103.1205, 'impair_unlearn_data_probs_mean': None}
+len: 39, max: 9.888963262740234e-42, min: 2.2560905275629555e-43, mean: 3.019798190619981e-42, total_mean: 9.80908925027372e-44
+{'loss': -104.0682, 'learning_rate': 0.0001, 'epoch': 0.85, 'impair_loss': 104.0682, 'impair_unlearn_data_probs_mean': None}
+len: 30, max: 7.627267541319979e-42, min: 1.5414283107572988e-44, mean: 4.091791515828466e-43, total_mean: 1.2611686178923354e-44
+{'loss': -105.8563, 'learning_rate': 0.0001, 'epoch': 0.89, 'impair_loss': 105.8563, 'impair_unlearn_data_probs_mean': None}
+len: 41, max: 1.0201452820284668e-42, min: 4.203895392974451e-45, mean: 2.956739759725364e-43, total_mean: 8.407790785948902e-45
+{'loss': -107.1174, 'learning_rate': 0.0001, 'epoch': 0.93, 'impair_loss': 107.1174, 'impair_unlearn_data_probs_mean': None}
+len: 40, max: 1.6255062186167878e-43, min: 2.802596928649634e-45, mean: 1.6815581571897805e-44, total_mean: 0.0
+{'loss': -107.8887, 'learning_rate': 0.0001, 'epoch': 0.96, 'impair_loss': 107.8887, 'impair_unlearn_data_probs_mean': None}
+len: 40, max: 1.0, min: 3.363116314379561e-44, mean: 0.02500000037252903, total_mean: 0.0007457121391780674
+{'loss': -108.7756, 'learning_rate': 0.0001, 'epoch': 1.0, 'impair_loss': 108.7756, 'impair_unlearn_data_probs_mean': None}
+** avg_probs: 0.02500000037252903, self.impair_probs_list: [1.0, 1.0, 0.9999999403953552, 1.0, 1.0, 1.0, 0.9999995231628418, 0.9975710511207581, 0.003827611682936549, 1.1915348048507912e-11, 1.3114858744993931e-21, 5.928063398263718e-25, 1.7538029648731648e-29, 9.48343609220802e-31, 1.1330931675621737e-33, 4.675929484494119e-36, 1.7489284395110633e-37, 1.787132263751705e-38, 1.3538883333813155e-39, 8.844911828910386e-40, 0.032258063554763794, 4.150646051330108e-42, 3.019798190619981e-42, 4.091791515828466e-43, 2.956739759725364e-43, 1.6815581571897805e-44, 0.02500000037252903]
+{'train_runtime': 163.0397, 'train_samples_per_second': 2631.262, 'train_steps_per_second': 165.604, 'train_loss': -65.63727915887203, 'epoch': 1.0}
+Traceback (most recent call last):
+  File "/home/hl3352/LLMs/LLMsInfluenceFunc/exp_diff_unlearn/../unlearn.py", line 154, in <module>
+    main()
+  File "/home/hl3352/LLMs/LLMsInfluenceFunc/exp_diff_unlearn/../unlearn.py", line 135, in main
+    unlearner.impair()
+  File "/home/hl3352/LLMs/LLMsInfluenceFunc/LLMIF/unlearning.py", line 294, in impair
+    eval_metrics = self.evaluate(eval_dataset=self.sub_train_dataset)
+  File "/home/hl3352/LLMs/LLMsInfluenceFunc/LLMIF/unlearning.py", line 268, in evaluate
+    result = super().evaluate(**kwargs)
+  File "/home/hl3352/anaconda3/envs/llama/lib/python3.10/site-packages/transformers/trainer.py", line 3024, in evaluate
+    output = eval_loop(
+  File "/home/hl3352/anaconda3/envs/llama/lib/python3.10/site-packages/transformers/trainer.py", line 3213, in evaluation_loop
+    loss, logits, labels = self.prediction_step(model, inputs, prediction_loss_only, ignore_keys=ignore_keys)
+  File "/home/hl3352/anaconda3/envs/llama/lib/python3.10/site-packages/transformers/trainer.py", line 3432, in prediction_step
+    loss, outputs = self.compute_loss(model, inputs, return_outputs=True)
+  File "/home/hl3352/LLMs/LLMsInfluenceFunc/LLMIF/unlearning.py", line 220, in compute_loss
+    outputs = model(**inputs)
+  File "/home/hl3352/anaconda3/envs/llama/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1522, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/hl3352/anaconda3/envs/llama/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1531, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/hl3352/anaconda3/envs/llama/lib/python3.10/site-packages/peft/peft_model.py", line 947, in forward
+    return self.base_model(
+  File "/home/hl3352/anaconda3/envs/llama/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1522, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/hl3352/anaconda3/envs/llama/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1531, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/hl3352/anaconda3/envs/llama/lib/python3.10/site-packages/accelerate/hooks.py", line 165, in new_forward
+    output = old_forward(*args, **kwargs)
+  File "/home/hl3352/anaconda3/envs/llama/lib/python3.10/site-packages/transformers/models/llama/modeling_llama.py", line 820, in forward
+    outputs = self.model(
+  File "/home/hl3352/anaconda3/envs/llama/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1522, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/hl3352/anaconda3/envs/llama/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1531, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/hl3352/anaconda3/envs/llama/lib/python3.10/site-packages/accelerate/hooks.py", line 165, in new_forward
+    output = old_forward(*args, **kwargs)
+  File "/home/hl3352/anaconda3/envs/llama/lib/python3.10/site-packages/transformers/models/llama/modeling_llama.py", line 708, in forward
+    layer_outputs = decoder_layer(
+  File "/home/hl3352/anaconda3/envs/llama/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1522, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/hl3352/anaconda3/envs/llama/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1531, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/hl3352/anaconda3/envs/llama/lib/python3.10/site-packages/accelerate/hooks.py", line 165, in new_forward
+    output = old_forward(*args, **kwargs)
+  File "/home/hl3352/anaconda3/envs/llama/lib/python3.10/site-packages/transformers/models/llama/modeling_llama.py", line 424, in forward
+    hidden_states, self_attn_weights, present_key_value = self.self_attn(
+  File "/home/hl3352/anaconda3/envs/llama/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1522, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/hl3352/anaconda3/envs/llama/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1531, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/hl3352/anaconda3/envs/llama/lib/python3.10/site-packages/accelerate/hooks.py", line 165, in new_forward
+    output = old_forward(*args, **kwargs)
+  File "/home/hl3352/anaconda3/envs/llama/lib/python3.10/site-packages/transformers/models/llama/modeling_llama.py", line 379, in forward
+    attn_output = self.o_proj(attn_output)
+  File "/home/hl3352/anaconda3/envs/llama/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1522, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/hl3352/anaconda3/envs/llama/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1531, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/hl3352/anaconda3/envs/llama/lib/python3.10/site-packages/peft/tuners/lora.py", line 1123, in forward
+    result = super().forward(x)
+  File "/home/hl3352/anaconda3/envs/llama/lib/python3.10/site-packages/bitsandbytes/nn/modules.py", line 248, in forward
+    out = bnb.matmul_4bit(x, self.weight.t(), bias=bias, quant_state=self.weight.quant_state)
+  File "/home/hl3352/anaconda3/envs/llama/lib/python3.10/site-packages/bitsandbytes/autograd/_functions.py", line 579, in matmul_4bit
+    return MatMul4Bit.apply(A, B, out, bias, quant_state)
+  File "/home/hl3352/anaconda3/envs/llama/lib/python3.10/site-packages/torch/autograd/function.py", line 506, in apply
+    return super().apply(*args, **kwargs)  # type: ignore[misc]
+  File "/home/hl3352/anaconda3/envs/llama/lib/python3.10/site-packages/bitsandbytes/autograd/_functions.py", line 516, in forward
+    output = torch.nn.functional.linear(A, F.dequantize_4bit(B, state).to(A.dtype).t(), bias)
+  File "/home/hl3352/anaconda3/envs/llama/lib/python3.10/site-packages/bitsandbytes/functional.py", line 905, in dequantize_4bit
+    if absmax.dtype != torch.float32: absmax = absmax.float()
+KeyboardInterrupt
