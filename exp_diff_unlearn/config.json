@@ -18,7 +18,7 @@
 	"load_in_4bit": true
     },
     "unlearning": {
-	"output_dir": "{out_dir}/saved_model",
+	"output_dir": "./saved_model",
 	"wandb_project": "t8_unlearn_test",
 	"run_name": "run_name_test",
 	"per_device_batch_size": 16,
@@ -27,6 +27,6 @@
 	"impair_break_min_max": "{mm}",
 	"impair_break_step_epoch": "{se}",
         "repair_learning_rate": 1e-5,
-        "repair_subset_ratio": 0.01,
+        "repair_subset_ratio": 0.01
     }
 }
