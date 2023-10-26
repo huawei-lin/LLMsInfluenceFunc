@@ -1,5 +1,5 @@
 import os
-os.environ["CUDA_VISIBLE_DEVICES"]="0"
+# os.environ["CUDA_VISIBLE_DEVICES"]="0"
 from typing import Dict, Optional, Sequence
 from transformers import AutoTokenizer, LlamaForCausalLM
 import argparse

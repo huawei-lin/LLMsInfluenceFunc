@@ -103,7 +103,7 @@ class UnlearnCallback(TrainerCallback):
         The repair process is to recover the model ability from sub training dataset.
         It can be checked after each step.
         '''
-        repair_num = 5
+        repair_num = 20
         if self.unlearn_mode == "repair":
             if len(self.losses) >= repair_num:
                 self.losses.pop(0)
@@ -136,10 +136,12 @@ class Unlearner(Trainer):
         self.unlearn_callback = UnlearnCallback(self.args.impair_break_min_max, self.args.impair_break_step_epoch)
         self.add_callback(self.unlearn_callback)
 
-    def get_sub_dataset(self, entire_dataset, unlearn_dataset):
+    def get_sub_dataset(self, entire_dataset, unlearn_dataset, repair_subset_ratio=None):
+        if repair_subset_ratio is None:
+            repair_subset_ratio = self.args.repair_subset_ratio
         entire_dataset_len = len(entire_dataset)
-        sub_dataset_len = math.ceil(self.args.repair_subset_ratio * entire_dataset_len)
-        print(f"repair_subset_ratio: {self.args.repair_subset_ratio}")
+        sub_dataset_len = math.ceil(repair_subset_ratio * entire_dataset_len)
+        print(f"repair_subset_ratio: {repair_subset_ratio}")
         idx = random.sample(range(0, entire_dataset_len), sub_dataset_len)
         for x in idx:
             for i in range(len(unlearn_dataset)):
@@ -316,7 +318,7 @@ class Unlearner(Trainer):
         while self.control.should_training_stop == False or self.unlearn_callback.avg_loss > self.unlearn_callback.repair_break_threshold:
             print(f"repair epoch: {epoch_num}")
             self.args.num_train_epochs = 1
-            self.sub_train_dataset = self.get_sub_dataset(self.ori_train_dataset, self.unlearn_dataset) # change subset every time
+            self.sub_train_dataset = self.get_sub_dataset(self.ori_train_dataset, self.unlearn_dataset, self.args.repair_subset_ratio * 5) # change subset every time
             self.train_dataset = self.sub_train_dataset
             self.train()
             print(f"self.unlearn_callback.avg_loss: {self.unlearn_callback.avg_loss}, threshold: {self.unlearn_callback.repair_break_threshold}")

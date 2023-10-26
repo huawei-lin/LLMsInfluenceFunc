@@ -13,7 +13,7 @@
 #    limitations under the License.
 
 import os
-os.environ["CUDA_VISIBLE_DEVICES"]="0"
+# os.environ["CUDA_VISIBLE_DEVICES"]="0"
 from typing import Dict, Optional, Sequence
 from peft import (
     get_peft_model,
@@ -140,7 +140,7 @@ def main():
         unlearner.save_model(output_dir=unlearning_args.output_dir + f"/{turns_num}")
         turns_num += 1
 
-        if turns_num >= 50:
+        if turns_num >= 200:
             break
 
 #         if unlearner.unlearn_callback.probs < unlearning_args.impair_break_threshold:

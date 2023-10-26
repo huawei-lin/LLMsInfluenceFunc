@@ -80,7 +80,7 @@ def s_test(z_test, t_test, input_len, model, z_loader, gpu=-1, damp=0.01, scale=
         if has_nan:
             break
         h_estimate = copy(h_estimate_temp)
-        display_progress("Calc. s_test recursions: ", i, recursion_depth, run_time=time.time()-start_time)
+        # display_progress("Calc. s_test recursions: ", i, recursion_depth, run_time=time.time()-start_time)
     return h_estimate, min_nan_depth
 
 
