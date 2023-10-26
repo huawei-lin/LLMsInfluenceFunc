@@ -26,5 +26,4 @@
 # The code you actually need to run goes here
 
 
-nvidia-smi
-python ../../unlearn.py --config='./config.json' | tee std.txt
+CUDA_VISIBLE_DEVICES="0" nohup python ../../unlearn.py --config='./config.json' | tee std.txt &

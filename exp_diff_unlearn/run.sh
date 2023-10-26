@@ -6,8 +6,9 @@ echo "shell_dir: ${shell_dir}"
 # min_max=("mean" "max")
 min_max=("mean")
 step_epoch=("step")
-threshold=(0.2 0.1 0.01)
-impair_lr=(0.0001 0.00001)
+threshold=(0.3 0.2 0.1)
+# impair_lr=(0.0001 0.00001)
+impair_lr=(0.00001)
 
 for mm in "${min_max[@]}"
 do
@@ -30,11 +31,12 @@ do
                 sed -i "s/{mm}/${mm}/g" config.json
                 sed -i "s/{se}/${se}/g" config.json
 
-                res=`sbatch ./submit.sh`
-                res=(${res})
-                task_id=${res[-1]}
-                echo "task_id: ${task_id}"
-                touch "task_id_${task_id}"
+		bash ./submit.sh
+#                 res=`sbatch ./submit.sh`
+#                 res=(${res})
+#                 task_id=${res[-1]}
+#                 echo "task_id: ${task_id}"
+#                 touch "task_id_${task_id}"
             done
         done
     done

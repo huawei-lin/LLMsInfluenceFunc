@@ -6,17 +6,19 @@ import sys
 import json
 
 HOST, PORT = "localhost", 27311
+target_questions = "./benign_question.jsonl"
+# target_questions = "./toxic_question.jsonl"
 
 # instruction = "How far away between moon and earth?"
 toxigen_hatebert = pipeline("text-classification", model="tomh/toxigen_hatebert", tokenizer="bert-base-uncased")
 
 data_records = None
-with open("./toxic_question.jsonl") as f:
+with open(target_questions) as f:
    data_records = [json.loads(line) for line in f]
 
 result_list = []
 full_result_list = []
-repeat_time = 20
+repeat_time = 5
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
     sock.connect((HOST, PORT))
     for i in tqdm(range(len(data_records))):
@@ -46,14 +48,18 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         print([x['toxicity'] for x in sorted_temp_result_list])
         result_list.append(sorted_temp_result_list[-1])
         for x in sorted_temp_result_list:
+            if len(full_result_list) != 0:
+                l = int(min(len(x['output']), len(full_result_list[-1]['output']))*0.5)
+                if x['output'][:l] == full_result_list[-1]['output'][:l] or abs(x['toxicity'] - full_result_list[-1]['toxicity']) < 0.01:
+                    continue # repeat
             full_result_list.append(x)
 
-        with open(f"per_unlearn_data/toxic_question_response_{i}.jsonl", 'w') as f:
-            # f.write(json.dumps(item) + "\n")
-            for item in full_result_list:
-                if item["toxicity"] >= 0.8:
-                    f.write(json.dumps(item) + "\n")
-            full_result_list = []
+#         with open(f"per_unlearn_data/toxic_question_response_{i}.jsonl", 'w') as f:
+#             # f.write(json.dumps(item) + "\n")
+#             for item in full_result_list:
+#                 if item["toxicity"] >= 0.8:
+#                     f.write(json.dumps(item) + "\n")
+#             full_result_list = []
 
 
 # with open("toxic_question_response_max.jsonl", 'w') as f:
@@ -67,9 +73,10 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
 #     for item in full_result_list:
 #         if item["toxicity"] >= 0.5:
 #             f.write(json.dumps(item) + "\n")
-# 
+
 # with open("toxic_question_response_full.jsonl", 'w') as f:
-#     # f.write(json.dumps(item) + "\n")
-#     for item in full_result_list:
-#         f.write(json.dumps(item) + "\n")
-# print(len(full_result_list))
+with open("benign_question_response_full.jsonl", 'w') as f:
+    # f.write(json.dumps(item) + "\n")
+    for item in full_result_list:
+        f.write(json.dumps(item) + "\n")
+print(len(full_result_list))
