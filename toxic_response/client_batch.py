@@ -75,7 +75,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
 #             f.write(json.dumps(item) + "\n")
 
 # with open("toxic_question_response_full.jsonl", 'w') as f:
-with open("benign_question_response_full.jsonl", 'w') as f:
+with open("benign_question_response_full_4060.jsonl", 'w') as f:
     # f.write(json.dumps(item) + "\n")
     for item in full_result_list:
         f.write(json.dumps(item) + "\n")

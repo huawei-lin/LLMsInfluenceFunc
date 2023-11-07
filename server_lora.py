@@ -9,7 +9,8 @@ from peft import PeftModel, set_peft_model_state_dict, prepare_model_for_kbit_tr
 
 model_path = "meta-llama/Llama-2-7b-hf"
 # adapter_path = "/home/hl3352/LLMs/stanford_alpaca/exp_toxic_lora/e15_llama2_qkvo_r512_a1024_lr1e-4_bs128/checkpoint-10113"
-adapter_path = "/home/hl3352/LLMs/LLMsInfluenceFunc/target_model/e15_llama2_qkvo_r512_a1024_lr1e-4_bs128/checkpoint-11032"
+# adapter_path = "/home/hl3352/LLMs/LLMsInfluenceFunc/target_model/e15_llama2_qkvo_r512_a1024_lr1e-4_bs128/checkpoint-11032"
+adapter_path = "/home/hl3352/LLMs/stanford_alpaca/exp_alpaca/e10_llama2_7b_qv_r256_a512_lr1e-4_bs128/checkpoint-4060"
 
 model = None
 tokenizer = None

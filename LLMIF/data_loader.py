@@ -9,6 +9,7 @@ from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from peft import PeftModel, set_peft_model_state_dict, prepare_model_for_kbit_training
 import random
+import numpy as np
 import transformers
 
 IGNORE_INDEX = -100
@@ -157,15 +158,19 @@ class TrainDataset(Dataset):
         logging.warning("Done tokenizing inputs...")
 
         # self.sorted_index = sorted(list(range(len(data_dict["input_ids"]))), key=lambda i: len(data_dict["input_ids"][i])) # sort by length
-        self.sorted_index = list(range(len(data_dict["input_ids"]))) # random
+        if load_idx_list is None:
+            load_idx_list = list(range(len(data_dict["input_ids"])))
+
+        s = list(range(len(load_idx_list)))
         if shuffle == True:
             random.seed(shuffle_seed)
-            random.shuffle(self.sorted_index)
+            random.shuffle(s)
 
-        self.list_data_dict = [ list_data_dict[i] for i in self.sorted_index ]
-        self.input_ids = [ data_dict["input_ids"][i] for i in self.sorted_index ]
-        self.labels = [ data_dict["labels"][i] for i in self.sorted_index ]
-        self.input_ids_lens = [ data_dict["input_ids_lens"][i] for i in self.sorted_index ]
+        self.input_ids = [ data_dict["input_ids"][i] for i in s ]
+        self.sorted_index = [ load_idx_list[i] for i in s ]
+        self.list_data_dict = [ list_data_dict[i] for i in s ]
+        self.labels = [ data_dict["labels"][i] for i in s ]
+        self.input_ids_lens = [ data_dict["input_ids_lens"][i] for i in s ]
 
 
 #         self.list_data_dict = list_data_dict

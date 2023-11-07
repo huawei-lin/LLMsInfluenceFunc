@@ -137,7 +137,10 @@ def display_progress(text, current_step, last_step, enabled=True,
         if cur_time is not None:
             start_time_records[text] = 0
 
-    sys.stdout.flush()
+    if last_step <= 5000:
+        sys.stdout.flush()
+    elif current_step%int(last_step/2000) == 0 or current_step >= last_step * 0.95:
+        sys.stdout.flush()
 
 
 def init_logging(filename=None):
@@ -161,19 +164,27 @@ def init_logging(filename=None):
 def get_default_config():
     """Returns a default config file"""
     config = {
-        'outdir': 'outdir',
-        'seed': 42,
-        'gpu': 0,
-        'dataset': 'CIFAR10',
-        'num_classes': 10,
-        'test_sample_num': 1,
-        'test_start_index': 0,
-        'recursion_depth': 1,
-        'r_averaging': 1,
-        'scale': None,
-        'damp': None,
-        'calc_method': 'img_wise',
-        'log_filename': None,
+        "data": {
+            "train_data_path": None,
+            "test_data_path": None,
+        },
+        "influence": {
+            "outdir": "outdir",
+            "seed": 42,
+            "recursion_depth": 5,
+            "r_averaging": 3,
+            "scale": 50000,
+            "cal_words_infl": False,
+            "grads_path": None,
+            "n_threads": 1,
+            "top_k": 10
+        },
+        "model": {
+            "model_path": None,
+            "lora_path": None,
+            "max_length": None,
+            "load_in_4bit": False
+        }
     }
 
     return config
@@ -181,4 +192,6 @@ def get_default_config():
 
 def get_config(config_path):
     """Returns a  config file"""
-    return json.load(open(config_path))
+    config = get_default_config()
+    config.update(json.load(open(config_path)))
+    return config
