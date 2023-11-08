@@ -20,15 +20,16 @@ import os
 
 MAX_CAPACITY = 2048
 MAX_DATASET_SIZE = int(1e8)
+BATCH_SIZE = 128
 
 def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engine):
-    print(f"rank: {rank}, world_size: {world_size}")
+    print(f"rank: {rank}, world_size: {world_size}, process_id: {process_id}")
     model, tokenizer = get_model_tokenizer(config['model'], device_map=f"cuda:{rank}")
     model = model.to(rank)
     print(f"CUDA {rank}: Model loaded!")
 
     # train_dataset = TrainDataset(config['data']['train_data_path'], tokenizer, shuffle=False, load_idx_list=load_idx_list)
-    train_dataset = TrainDataset(config['data']['train_data_path'], tokenizer)
+    train_dataset = TrainDataset(config['data']['train_data_path'], tokenizer, shuffle=False)
     train_loader = DataLoader(train_dataset, batch_size=1, shuffle=False, num_workers=0)
 
     test_dataset = TestDataset(config['data']['test_data_path'], tokenizer)
@@ -59,67 +60,85 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
     while True:
         cal_word_infl = -1
 
+        batch_idx = []
+        batch_word_infl = []
+        batch_start = None
         while True:
             with mp_engine.train_idx.get_lock(), mp_engine.finished_idx.get_lock(), mp_engine.cal_word_infl.get_lock():
-                idx = mp_engine.train_idx.value
-                mp_engine.train_idx.value = (mp_engine.train_idx.value + 1)%train_dataset_size
-                if mp_engine.finished_idx[idx] == False:
-                    mp_engine.finished_idx[idx] = True
-                    cal_word_infl = mp_engine.cal_word_infl[idx]
+                batch_start = mp_engine.train_idx.value
+                next_idx = mp_engine.train_idx.value + BATCH_SIZE
+                mp_engine.train_idx.value = 0 if next_idx >= train_dataset_size else next_idx
+
+                for i in range(batch_start, min(batch_start + BATCH_SIZE, train_dataset_size)):
+                    if mp_engine.finished_idx[i] == False:
+                        mp_engine.finished_idx[i] = True
+                        batch_idx.append(i)
+                        batch_word_infl.append(mp_engine.cal_word_infl[i])
+
+                if len(batch_idx) != 0:
                     break
             time.sleep(0.002)
     
-        if idx >= train_dataset_size:
-            break
 
         try:
-            z, t, input_len, real_id = train_loader.dataset[idx]
-            z = train_loader.collate_fn([z])
-            t = train_loader.collate_fn([t])
-            if z.dim() > 2:
-                z = torch.squeeze(z, 0)
-            if t.dim() > 2:
-                t = torch.squeeze(t, 0)
+            loaded_gradients = None
+            save_gradients = []
+            grad_path_name = None
+            if config["influence"]["grads_path"] is not None and len(config["influence"]["grads_path"]) != 0:
+                grad_path_name = config["influence"]["grads_path"] + f"/train_grad_{batch_start:08d}.pt"
 
-            if cal_word_infl < 0:
-                # grad_z_vec = grad_z(z, t, input_len, model, gpu=rank)
-                # grad_z_vec = [x.data.cpu() for x in grad_z_vec]
-                grad_z_vec = None
-                grad_path_name = None
-                if config["influence"]["grads_path"] is not None and len(config["influence"]["grads_path"]) != 0:
-                    grad_path_name = config["influence"]["grads_path"] + f"/train_grad_{real_id:08d}.pt"
-                if grad_path_name is not None and os.path.exists(grad_path_name):
-                    grad_z_vec = torch.load(grad_path_name, map_location=model.device)
+            if grad_path_name is not None and os.path.exists(grad_path_name):
+                loaded_gradients = torch.load(grad_path_name, map_location=model.device)
+
+            for idx, cal_word_infl in zip(batch_idx, batch_word_infl):
+                z, t, input_len, real_id = train_loader.dataset[idx]
+                z = train_loader.collate_fn([z])
+                t = train_loader.collate_fn([t])
+                if z.dim() > 2:
+                    z = torch.squeeze(z, 0)
+                if t.dim() > 2:
+                    t = torch.squeeze(t, 0)
+
+                if cal_word_infl < 0:
+                    # grad_z_vec = grad_z(z, t, input_len, model, gpu=rank)
+                    # grad_z_vec = [x.data.cpu() for x in grad_z_vec]
+                    grad_z_vec = None
+                    if loaded_gradients is not None:
+                        grad_z_vec = loaded_gradients[idx - batch_start]
+                    else:
+                        grad_z_vec = grad_z(z, t, input_len, model, gpu=rank)
+                        save_gradients.append(grad_z_vec)
+
+                    for i in range(len(test_dataset)):
+                        # s_test_vec = [x.data.to(rank) for x in s_test_vec_list[i]]
+                        influence = -sum(
+                            [
+                                torch.sum(k * j).data.cpu().numpy()
+                                # torch.sum(k * j)
+                                for k, j in zip(grad_z_vec, s_test_vec_list[i])
+                                # for k, j in zip(grad_z_vec, s_test_vec)
+                            ]) / train_dataset_size
+
+                        if influence != influence: # check if influence is Nan
+                            raise Exception('Got unexpected Nan influence!')
+                        # (test id, shuffle id, original id, influence score)
+                        mp_engine.result_q.put((i, idx, real_id, influence), block=True, timeout=None)
+
+                        # print(f"idx: {idx}, real_id: {real_id}, influence: {influence}")
                 else:
-                    grad_z_vec = grad_z(z, t, input_len, model, gpu=rank)
-                    if grad_path_name is not None:
-                        torch.save(grad_z_vec, grad_path_name)
+                    # s_test_vec = [x.data.to(rank) for x in s_test_vec_list[cal_word_infl]]
+                    _, words_influence = grad_z(z, t, input_len, model, gpu=rank, return_words_loss=True, s_test_vec=s_test_vec_list[cal_word_infl])
+                    # _, words_influence = grad_z(z, t, input_len, model, gpu=rank, return_words_loss=True, s_test_vec=s_test_vec)
+                    # print(f"cal_word_infl: {cal_word_infl}, idx: {idx}, real_id: {real_id}, influence: {influence}")
+                    mp_engine.result_q.put((cal_word_infl, idx, real_id, words_influence), block=True, timeout=None)
 
-                for i in range(len(test_dataset)):
-                    # s_test_vec = [x.data.to(rank) for x in s_test_vec_list[i]]
-                    influence = -sum(
-                        [
-                            torch.sum(k * j).data.cpu().numpy()
-                            # torch.sum(k * j)
-                            for k, j in zip(grad_z_vec, s_test_vec_list[i])
-                            # for k, j in zip(grad_z_vec, s_test_vec)
-                        ]) / train_dataset_size
+            if grad_path_name is not None and loaded_gradients is None:
+                torch.save(save_gradients, grad_path_name)
 
-                    if influence != influence: # check if influence is Nan
-                        raise Exception('Got unexpected Nan influence!')
-                    # (test id, shuffle id, original id, influence score)
-                    mp_engine.result_q.put((i, idx, real_id, influence), block=True, timeout=None)
-
-                    # print(f"idx: {idx}, real_id: {real_id}, influence: {influence}")
-            else:
-                # s_test_vec = [x.data.to(rank) for x in s_test_vec_list[cal_word_infl]]
-                _, words_influence = grad_z(z, t, input_len, model, gpu=rank, return_words_loss=True, s_test_vec=s_test_vec_list[cal_word_infl])
-                # _, words_influence = grad_z(z, t, input_len, model, gpu=rank, return_words_loss=True, s_test_vec=s_test_vec)
-                # print(f"cal_word_infl: {cal_word_infl}, idx: {idx}, real_id: {real_id}, influence: {influence}")
-                mp_engine.result_q.put((cal_word_infl, idx, real_id, words_influence), block=True, timeout=None)
         except Exception as e:
             with mp_engine.finished_idx.get_lock():
-                mp_engine.finished_idx[idx] = False
+                for idx in batch_idx:
+                    mp_engine.finished_idx[idx] = False
                 print(e)
             raise e
 
