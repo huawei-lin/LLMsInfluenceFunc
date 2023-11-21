@@ -4,9 +4,11 @@ import logging
 from pathlib import Path
 from datetime import datetime as dt
 import datetime
+from tqdm import tqdm
 
 run_time_records = {}
 start_time_records = {}
+tqdm_dict = {}
 def save_json(json_obj, json_path, append_if_exists=False,
               overwrite_if_exists=False, unique_fn_if_exists=True):
     """Saves a json file
@@ -75,6 +77,16 @@ def display_progress(text, current_step, last_step, enabled=True,
     """
     if not enabled:
         return
+
+    ########
+    if text not in tqdm_dict.keys():
+        tqdm_dict[text] = tqdm(total=last_step, desc=text)
+    tqdm_dict[text].n = current_step
+    tqdm_dict[text].refresh()
+    return
+
+    ########
+
 
     # Fix display for most loops which start with 0, otherwise looks weird
     if fix_zero_start:

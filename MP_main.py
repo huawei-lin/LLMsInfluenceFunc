@@ -33,7 +33,8 @@ def main():
     
 
 if __name__ == "__main__":
-    mp.set_start_method('spawn')
+    mp.set_start_method('spawn', force=True)
     # mp.set_start_method('forkserver')
-    # torch.multiprocessing.set_sharing_strategy('file_system')
+    torch.multiprocessing.set_sharing_strategy('file_system')
+    # torch.set_num_threads(16)
     main()

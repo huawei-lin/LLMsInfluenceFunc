@@ -70,7 +70,7 @@ def calc_s_test(model, test_loader, train_loader, save=False, gpu=-1,
     return s_tests, save
 
 
-def calc_s_test_single(model, z_test, t_test, input_len, train_loader, gpu=-1,
+def calc_s_test_single(model, z_test, t_test, input_len, train_loader=None, train_dataset=None, gpu=-1,
                        damp=0.01, scale=25, recursion_depth=5000, r=1):
     """Calculates s_test for a single test image taking into account the whole
     training dataset. s_test = invHessian * nabla(Loss(test_img, model params))
@@ -94,14 +94,14 @@ def calc_s_test_single(model, z_test, t_test, input_len, train_loader, gpu=-1,
         s_test_vec: torch tensor, contains s_test for a single test image"""
 
     min_nan_depth = recursion_depth
-    res, nan_depth = s_test(z_test, t_test, input_len, model, train_loader,
+    res, nan_depth = s_test(z_test, t_test, input_len, model, train_loader, train_dataset,
                  gpu=gpu, damp=damp, scale=scale,
                  recursion_depth=recursion_depth)
     # res = [x.data.cpu() for x in res]
     min_nan_depth = min(min_nan_depth, nan_depth)
     for i in range(1, r):
         start_time = time.time()
-        cur, nan_depth = s_test(z_test, t_test, input_len, model, train_loader,
+        cur, nan_depth = s_test(z_test, t_test, input_len, model, train_loader, train_dataset,
                gpu=gpu, damp=damp, scale=scale,
                recursion_depth=recursion_depth)
         # cur = [x.data.cpu() for x in cur]

@@ -4,9 +4,10 @@ result_path = "/home/hl3352/LLMs/LLMsInfluenceFunc/multi_test_outdir_words_infl_
 result_path = "/home/hl3352/LLMs/LLMsInfluenceFunc/experiments/proposal/eval_infl/words_outdir/influence_results_117668_2023-10-19-18-15-34.json"
 result_path = "/home/hl3352/LLMs/LLMsInfluenceFunc/exp_unlearn_all_toxic_response/influence_results_toxic.json"
 result_path = "/home/hl3352/LLMs/LLMsInfluenceFunc/experiments/proposal/eval_infl/words_outdir/influence_results_117668_2023-10-23-21-33-29.json"
-result_path = "/home/hl3352/LLMs/LLMsInfluenceFunc/experiments/load_grad/toxic_words_outdir/influence_results_117668_2023-10-27-19-37-24.json"
+result_path = "/home/hl3352/LLMs/LLMsInfluenceFunc/experiments/benign_load_grad/cal_words_infl_full_batch/influence_results_52002_2023-11-08-15-09-57.json"
 
 data_path = "/home/hl3352/LLMs/LLMsInfluenceFunc/data/all_data_single_turn_merge_alpaca.jsonl"
+data_path = "/home/hl3352/LLMs/LLMsInfluenceFunc/data/normal_alpaca_data.jsonl"
 top_k = 100
 top_k = 5
 
