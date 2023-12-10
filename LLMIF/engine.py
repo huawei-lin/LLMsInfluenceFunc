@@ -17,9 +17,30 @@ from copy import copy
 import logging
 import datetime
 import os
+from torch.autograd import grad
 
 MAX_CAPACITY = 2048
 MAX_DATASET_SIZE = int(1e8)
+
+def calc_loss(y, t):
+    """Calculates the loss
+
+    Arguments:
+        y: torch tensor, input with size (minibatch, nr_of_classes)
+        t: torch tensor, target expected by loss of size (0 to nr_of_classes-1)
+
+    Returns:
+        loss: scalar, the loss"""
+#     # Shift so that tokens < n predict n
+#     y = y[..., :-1, :].contiguous()
+#     t = t[..., 1:].contiguous()
+
+    bs, _, vocab_size = y.shape
+    y = y.reshape(-1, vocab_size)
+    t = t.reshape(-1)
+
+    loss = torch.nn.functional.cross_entropy(y, t)
+    return loss
 
 def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engine):
     print(f"rank: {rank}, world_size: {world_size}")
@@ -44,15 +65,29 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
     test_dataset_size = len(test_dataset)
     for i in range(test_dataset_size):
         z_test, t_test, input_len = test_dataset[i]
-        z_test = default_collate([z_test])
-        t_test = default_collate([t_test])
-        s_test_vec = calc_s_test_single(model, z_test, t_test, input_len, train_loader,
-                                        rank, recursion_depth=config['influence']['recursion_depth'],
-                                        scale=config['influence']['scale'],
-                                        r=config['influence']['r_averaging'])
-        s_test_vec = [x.data.cpu() for x in s_test_vec]
+        x = default_collate([z_test])
+        t = default_collate([t_test])
+
+        if gpu >= 0:
+            x, t = x.cuda(gpu), t.cuda(gpu)
+
+        with torch.cuda.amp.autocast(dtype=torch.float16):
+            y = model(x)
+            y = y.logits
+            loss = calc_loss(y, t)
+            params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
+            params = params[-20:]
+
+            grads = grad(loss, w)
+
+
+        s_test_vec = [x.data.cpu() for x in grads]
         s_test_vec_list.append(s_test_vec)
         display_progress("Calc. s test vector: ", i, test_dataset_size, cur_time=time.time())
+
+        model.zero_grad(set_to_none=True)
+        torch.cuda.empty_cache()
+        gc.collect()
 
     idx = 0
     mp_engine.start_barrier.wait()
@@ -80,6 +115,25 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                 z = torch.squeeze(z, 0)
             if t.dim() > 2:
                 t = torch.squeeze(t, 0)
+
+            if gpu >= 0:
+                z, t = z.cuda(gpu), t.cuda(gpu)
+    
+            with torch.cuda.amp.autocast(dtype=torch.float16):
+                y = model(z)
+                y = y.logits
+                loss = calc_loss(y, t)
+                params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
+                params = params[-20:]
+    
+                grads = grad(loss, params)
+    
+            s_test_vec = [x.data.cpu() for x in grads]
+            s_test_vec_list.append(s_test_vec)
+            display_progress("Calc. s test vector: ", i, test_dataset_size, cur_time=time.time())
+            model.zero_grad(set_to_none=True)
+            torch.cuda.empty_cache()
+            gc.collect()
 
             if cal_word_infl < 0:
                 # grad_z_vec = grad_z(z, t, input_len, model, gpu=rank)
