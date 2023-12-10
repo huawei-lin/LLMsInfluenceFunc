@@ -50,7 +50,7 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                                         rank, recursion_depth=config['influence']['recursion_depth'],
                                         scale=config['influence']['scale'],
                                         r=config['influence']['r_averaging'])
-        # s_test_vec = [x.data.cpu() for x in s_test_vec]
+        s_test_vec = [x.data.cpu() for x in s_test_vec]
         s_test_vec_list.append(s_test_vec)
         display_progress("Calc. s test vector: ", i, test_dataset_size, cur_time=time.time())
 
@@ -96,13 +96,13 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                         torch.save(grad_z_vec, grad_path_name)
 
                 for i in range(len(test_dataset)):
-                    # s_test_vec = [x.data.to(rank) for x in s_test_vec_list[i]]
+                    s_test_vec = [x.data.to(rank) for x in s_test_vec_list[i]]
                     influence = -sum(
                         [
                             torch.sum(k * j).data.cpu().numpy()
                             # torch.sum(k * j)
-                            for k, j in zip(grad_z_vec, s_test_vec_list[i])
-                            # for k, j in zip(grad_z_vec, s_test_vec)
+                            # for k, j in zip(grad_z_vec, s_test_vec_list[i])
+                            for k, j in zip(grad_z_vec, s_test_vec)
                         ]) / train_dataset_size
 
                     if influence != influence: # check if influence is Nan
@@ -195,9 +195,12 @@ def MP_run_get_result(config, mp_engine):
                 infl = [ x.tolist() if not isinstance(x, int) else x for x in infl_list[j] ]
                 # words_infl = [ x.tolist() if not isinstance(x, list) else x for x in words_infl_list ]
                 # influences[test_id]['influence'] = infl
-                helpful = helpful[:topk_num]
-                influences[j]['helpful'] = copy(helpful)
-                influences[j]['helpful_infl'] = copy([infl[x] for x in helpful_shuffle_ids])
+                helpful_topk = helpful[:topk_num]
+                harmful_topk = harmful[:topk_num]
+                influences[j]['helpful'] = copy(helpful_topk)
+                influences[j]['helpful_infl'] = copy([infl[x] for x in helpful_shuffle_ids[:topk_num]])
+                influences[j]['harmful'] = copy(harmful_topk)
+                influences[j]['harmful_infl'] = copy([infl[x] for x in helpful_shuffle_ids[-topk_num:][::-1]])
             influences['finished_cnt'] = f"{i + 1}/{total_size}"
             influences_path = save_json(influences, influences_path, overwrite_if_exists=True)
         # print(f"i: {i} real_id: {real_id}")
@@ -210,10 +213,13 @@ def MP_run_get_result(config, mp_engine):
             word_infl_dict = {}
             done_id = []
 
-            infl_num = len(influences[j]['helpful'])
+            infl_num = len(set(influences[j]['helpful'] + influences[j]['harmful']))
             # print(influences[j]['helpful'])
             with mp_engine.train_idx.get_lock(), mp_engine.finished_idx.get_lock(), mp_engine.cal_word_infl.get_lock():
                 for x in influences[j]['helpful']:
+                    mp_engine.cal_word_infl[real_id2shuffled_id[x]] = j
+                    mp_engine.finished_idx[real_id2shuffled_id[x]] = False
+                for x in influences[j]['harmful']:
                     mp_engine.cal_word_infl[real_id2shuffled_id[x]] = j
                     mp_engine.finished_idx[real_id2shuffled_id[x]] = False
 

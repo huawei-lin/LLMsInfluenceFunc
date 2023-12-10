@@ -9,6 +9,7 @@ from copy import copy
 from LLMIF.utils import display_progress
 from LLMIF.data_loader import IGNORE_INDEX
 import random
+from torch.utils.data import default_collate
 
 def s_test(z_test, t_test, input_len, model, z_loader, gpu=-1, damp=0.01, scale=25.0,
            recursion_depth=5000):
@@ -47,35 +48,40 @@ def s_test(z_test, t_test, input_len, model, z_loader, gpu=-1, damp=0.01, scale=
         # TODO: do x, t really have to be chosen RANDOMLY from the train set?
         #########################
         start_time = time.time()
-        for x, t, _, _ in z_loader:
-            if gpu >= 0:
-                x, t = x.cuda(gpu), t.cuda(gpu)
+        # for x, t, _, _ in z_loader:
+        idx = random.randint(0, len(z_loader.dataset))
+        x, t, _, _ = z_loader.dataset[idx]
+        x = default_collate([x])
+        t = default_collate([t])
 
-            with torch.cuda.amp.autocast(dtype=torch.float16):
-                y = model(x)
-                y = y.logits
-                loss = calc_loss(y, t)
-                loss = loss.mean(dim=1)
-                params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
-                params = params[-10:]
-                hv = hvp(loss, params, h_estimate)
+        if gpu >= 0:
+            x, t = x.cuda(gpu), t.cuda(gpu)
 
-            model.zero_grad(set_to_none=True)
-            torch.cuda.empty_cache()
-            gc.collect()
+        with torch.cuda.amp.autocast(dtype=torch.float16):
+            y = model(x)
+            y = y.logits
+            loss = calc_loss(y, t)
+            loss = loss.mean(dim=1)
+            params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
+            params = params[-20:]
+            hv = hvp(loss, params, h_estimate)
 
-            # Recursively caclulate h_estimate
-            h_estimate_temp = [
-                _v + (1 - damp) * _h_e - _hv / scale
-                for _v, _h_e, _hv in zip(v, h_estimate, hv)]
+        model.zero_grad(set_to_none=True)
+        torch.cuda.empty_cache()
+        gc.collect()
 
-            for _h in h_estimate_temp:
-                if torch.isnan(_h).any() == True:
-                    print(f"h_estimate has Nan. depth = {i}")
-                    min_nan_depth = min(min_nan_depth, i)
-                    has_nan = True
-                    break
-            break
+        # Recursively caclulate h_estimate
+        h_estimate_temp = [
+            _v + (1 - damp) * _h_e - _hv / scale
+            for _v, _h_e, _hv in zip(v, h_estimate, hv)]
+
+        for _h in h_estimate_temp:
+            if torch.isnan(_h).any() == True:
+                print(f"h_estimate has Nan. depth = {i}")
+                min_nan_depth = min(min_nan_depth, i)
+                has_nan = True
+                break
+        # break
 
         if has_nan:
             break
@@ -134,7 +140,7 @@ def grad_z(z, t, input_len, model, gpu=-1, return_words_loss=False, s_test_vec=N
         loss_mean = loss.mean()
         # Compute sum of gradients from model parameters to loss
         params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2]
-        params = params[-10:]
+        params = params[-20:]
         # grad_loss = [x.cpu() for x in grad(loss[0], params)]
         words_influence = []
         if return_words_loss == True and s_test_vec is not None:
