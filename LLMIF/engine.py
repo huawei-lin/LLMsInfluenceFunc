@@ -68,8 +68,8 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
         x = default_collate([z_test])
         t = default_collate([t_test])
 
-        if gpu >= 0:
-            x, t = x.cuda(gpu), t.cuda(gpu)
+        if rank >= 0:
+            x, t = x.cuda(rank), t.cuda(rank)
 
         with torch.cuda.amp.autocast(dtype=torch.float16):
             y = model(x)
@@ -78,7 +78,7 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
             params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
             params = params[-20:]
 
-            grads = grad(loss, w)
+            grads = grad(loss, params)
 
 
         s_test_vec = [x.data.cpu() for x in grads]
@@ -87,7 +87,6 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
 
         model.zero_grad(set_to_none=True)
         torch.cuda.empty_cache()
-        gc.collect()
 
     idx = 0
     mp_engine.start_barrier.wait()
@@ -116,25 +115,6 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
             if t.dim() > 2:
                 t = torch.squeeze(t, 0)
 
-            if gpu >= 0:
-                z, t = z.cuda(gpu), t.cuda(gpu)
-    
-            with torch.cuda.amp.autocast(dtype=torch.float16):
-                y = model(z)
-                y = y.logits
-                loss = calc_loss(y, t)
-                params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
-                params = params[-20:]
-    
-                grads = grad(loss, params)
-    
-            s_test_vec = [x.data.cpu() for x in grads]
-            s_test_vec_list.append(s_test_vec)
-            display_progress("Calc. s test vector: ", i, test_dataset_size, cur_time=time.time())
-            model.zero_grad(set_to_none=True)
-            torch.cuda.empty_cache()
-            gc.collect()
-
             if cal_word_infl < 0:
                 # grad_z_vec = grad_z(z, t, input_len, model, gpu=rank)
                 # grad_z_vec = [x.data.cpu() for x in grad_z_vec]
@@ -145,9 +125,22 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                 if grad_path_name is not None and os.path.exists(grad_path_name):
                     grad_z_vec = torch.load(grad_path_name, map_location=model.device)
                 else:
-                    grad_z_vec = grad_z(z, t, input_len, model, gpu=rank)
-                    if grad_path_name is not None:
-                        torch.save(grad_z_vec, grad_path_name)
+                    if rank >= 0:
+                        z, t = z.cuda(rank), t.cuda(rank)
+            
+                    with torch.cuda.amp.autocast(dtype=torch.float16):
+                        y = model(z)
+                        y = y.logits
+                        loss = calc_loss(y, t)
+                        params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
+                        params = params[-20:]
+            
+                        grad_z_vec = grad(loss, params)
+            
+                    model.zero_grad(set_to_none=True)
+                    torch.cuda.empty_cache()
+                    # if grad_path_name is not None:
+                    #     torch.save(grad_z_vec, grad_path_name)
 
                 for i in range(len(test_dataset)):
                     s_test_vec = [x.data.to(rank) for x in s_test_vec_list[i]]
