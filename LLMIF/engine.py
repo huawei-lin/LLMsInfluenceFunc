@@ -76,12 +76,13 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
             y = y.logits
             loss = calc_loss(y, t)
             params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
-            params = params[-20:]
+            params = params[-10:]
 
             grads = grad(loss, params)
 
         # s_test_vec = [x.data.cpu() for x in grads]
         s_test_vec = torch.cat([x.reshape(-1) for x in grads])
+        s_test_vec = s_test_vec.cpu()
         s_test_vec_list.append(s_test_vec)
         display_progress("Calc. s test vector: ", i, test_dataset_size, cur_time=time.time())
 
@@ -108,12 +109,6 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
 
         try:
             z, t, input_len, real_id = train_loader.dataset[idx]
-            z = train_loader.collate_fn([z])
-            t = train_loader.collate_fn([t])
-            if z.dim() > 2:
-                z = torch.squeeze(z, 0)
-            if t.dim() > 2:
-                t = torch.squeeze(t, 0)
 
             if cal_word_infl < 0:
                 # grad_z_vec = grad_z(z, t, input_len, model, gpu=rank)
@@ -124,7 +119,16 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                     grad_path_name = config["influence"]["grads_path"] + f"/train_grad_{real_id:08d}.pt"
                 if grad_path_name is not None and os.path.exists(grad_path_name):
                     grad_z_vec = torch.load(grad_path_name, map_location=model.device)
+                    # if isinstance(grad_z_vec, list):
+                    #     grad_z_vec = torch.cat([x.reshape(-1) for x in grad_z_vec])
                 else:
+                    z = train_loader.collate_fn([z])
+                    t = train_loader.collate_fn([t])
+                    if z.dim() > 2:
+                        z = torch.squeeze(z, 0)
+                    if t.dim() > 2:
+                        t = torch.squeeze(t, 0)
+
                     if rank >= 0:
                         z, t = z.cuda(rank), t.cuda(rank)
 
@@ -133,18 +137,18 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                         y = y.logits
                         loss = calc_loss(y, t)
                         params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
-                        params = params[-20:]
+                        params = params[-10:]
 
                         grad_z_vec = grad(loss, params)
 
                     model.zero_grad(set_to_none=True)
                     torch.cuda.empty_cache()
 
-                grad_z_vec = torch.cat([x.reshape(-1) for x in grad_z_vec])
                 for i in range(len(test_dataset)):
+                    s_test_vec = s_test_vec_list[i].to(rank)
                     # s_test_vec = [x.data.to(rank) for x in s_test_vec_list[i]]
                     # s_test_vec = torch.cat([x.reshape(-1) for x in s_test_vec])
-                    influence = torch.sum(torch.dot(grad_z_vec, s_test_vec_list[i])).cpu().numpy()
+                    influence = torch.sum(torch.dot(grad_z_vec, s_test_vec)).cpu().numpy()
 
 #                     influence = -sum(
 #                         [
