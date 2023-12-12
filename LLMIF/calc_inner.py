@@ -5,6 +5,7 @@ import gc
 import random
 import time
 from torch.autograd import grad
+import torch
 from copy import copy
 from LLMIF.utils import display_progress
 from LLMIF.data_loader import IGNORE_INDEX
@@ -32,7 +33,7 @@ def s_test(z_test, t_test, input_len, model, z_loader, gpu=-1, damp=0.01, scale=
     Returns:
         h_estimate: list of torch tensors, s_test"""
     v = grad_z(z_test, t_test, input_len, model, gpu)
-    h_estimate = tuple(v.copy())
+    h_estimate = copy(v)
 
 
     ################################
@@ -49,7 +50,7 @@ def s_test(z_test, t_test, input_len, model, z_loader, gpu=-1, damp=0.01, scale=
         #########################
         start_time = time.time()
         # for x, t, _, _ in z_loader:
-        idx = random.randint(0, len(z_loader.dataset))
+        idx = random.randint(0, len(z_loader.dataset) - 1)
         x, t, _, _ = z_loader.dataset[idx]
         x = default_collate([x])
         t = default_collate([t])
@@ -63,7 +64,7 @@ def s_test(z_test, t_test, input_len, model, z_loader, gpu=-1, damp=0.01, scale=
             loss = calc_loss(y, t)
             loss = loss.mean(dim=1)
             params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
-            params = params[-20:]
+            params = params[-10:]
             hv = hvp(loss, params, h_estimate)
 
         model.zero_grad(set_to_none=True)
@@ -71,22 +72,24 @@ def s_test(z_test, t_test, input_len, model, z_loader, gpu=-1, damp=0.01, scale=
         gc.collect()
 
         # Recursively caclulate h_estimate
-        h_estimate_temp = [
-            _v + (1 - damp) * _h_e - _hv / scale
-            for _v, _h_e, _hv in zip(v, h_estimate, hv)]
+#         h_estimate_temp = [
+#             _v + (1 - damp) * _h_e - _hv / scale
+#             for _v, _h_e, _hv in zip(v, h_estimate, hv)]
 
-        for _h in h_estimate_temp:
-            if torch.isnan(_h).any() == True:
-                print(f"h_estimate has Nan. depth = {i}")
-                min_nan_depth = min(min_nan_depth, i)
-                has_nan = True
-                break
-        # break
+        h_estimate_temp = v + (1 - damp) * h_estimate - hv / scale
+
+        if torch.isnan(h_estimate_temp).any() == True:
+            print(f"h_estimate has Nan. depth = {i}")
+            min_nan_depth = min(min_nan_depth, i)
+            has_nan = True
+            break
 
         if has_nan:
             break
         h_estimate = copy(h_estimate_temp)
         # display_progress("Calc. s_test recursions: ", i, recursion_depth, run_time=time.time()-start_time)
+
+    # h_estimate = torch.cat([x.reshape(-1) for x in h_estimate])
     return h_estimate, min_nan_depth
 
 
@@ -140,7 +143,7 @@ def grad_z(z, t, input_len, model, gpu=-1, return_words_loss=False, s_test_vec=N
         loss_mean = loss.mean()
         # Compute sum of gradients from model parameters to loss
         params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2]
-        params = params[-20:]
+        params = params[-10:]
         # grad_loss = [x.cpu() for x in grad(loss[0], params)]
         words_influence = []
         if return_words_loss == True and s_test_vec is not None:
@@ -150,14 +153,17 @@ def grad_z(z, t, input_len, model, gpu=-1, return_words_loss=False, s_test_vec=N
                     words_influence.append(0)
                     continue
                 # word_grad = list(x.cpu() for x in word_grad)
-                influence = -sum(
-                    [
-                        torch.sum(k * j).data.cpu().numpy()
-                        for k, j in zip(list(grad(loss[i], params, retain_graph=True)), s_test_vec)
-                    ])
-                words_influence.append(influence)
+#                 influence = -sum(
+#                     [
+#                         torch.sum(k * j).data.cpu().numpy()
+#                         for k, j in zip(list(grad(loss[i], params, retain_graph=True)), s_test_vec)
+#                     ])
 
-        grad_loss = list(grad(loss_mean, params))
+                grads = torch.cat([x.reshape(-1) for x in list(grad(loss[i], params, retain_graph=True))])
+                influence = -torch.sum(torch.dot(grads, s_test_vec)).cpu().numpy()
+                words_influence.append(float(influence))
+
+        grad_loss = torch.cat([x.reshape(-1) for x in list(grad(loss_mean, params))])
 
         model.zero_grad(set_to_none=True)
         torch.cuda.empty_cache()
@@ -185,18 +191,22 @@ def hvp(y, w, v):
 
     Raises:
         ValueError: `y` and `w` have a different length."""
-    if len(w) != len(v):
-        raise(ValueError("w and v must have the same length."))
+    # if len(w) != len(v):
+    #     raise(ValueError("w and v must have the same length."))
 
     # First backprop
-    first_grads = grad(y, w, create_graph=True)
+    # first_grads = grad(y, w, create_graph=True)
+    first_grads = torch.cat([x.reshape(-1) for x in grad(y, w, create_graph=True)])
 
     # Elementwise products
-    elemwise_products = 0
-    for grad_elem, v_elem in zip(first_grads, v):
-        elemwise_products += torch.sum(grad_elem * v_elem)
+    # elemwise_products = 0
+    # for grad_elem, v_elem in zip(first_grads, v):
+    #     elemwise_products += torch.sum(grad_elem * v_elem)
+    elemwise_products = torch.sum(first_grads * v)
+
 
     # Second backprop
-    return_grads = grad(elemwise_products, w)
+    # return_grads = grad(elemwise_products, w)
+    return_grads = torch.cat([x.reshape(-1) for x in grad(elemwise_products, w)])
 
     return return_grads

@@ -9,9 +9,10 @@ from LLMIF.calc_inner import grad_z
 from LLMIF.data_loader import get_model_tokenizer, TrainDataset, TestDataset
 from LLMIF.data_loader import get_dataset_size, read_data
 from LLMIF.influence_function import calc_s_test_single
-from LLMIF.utils import save_json, display_progress
+from LLMIF.utils import save_json, display_progress, load_json
 import numpy as np
 import time
+import json
 from pathlib import Path
 from copy import copy
 import logging
@@ -50,7 +51,7 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                                         rank, recursion_depth=config['influence']['recursion_depth'],
                                         scale=config['influence']['scale'],
                                         r=config['influence']['r_averaging'])
-        s_test_vec = [x.data.cpu() for x in s_test_vec]
+        # s_test_vec = [x.data.cpu() for x in s_test_vec]
         s_test_vec_list.append(s_test_vec)
         display_progress("Calc. s test vector: ", i, test_dataset_size, cur_time=time.time())
 
@@ -95,15 +96,21 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                     if grad_path_name is not None:
                         torch.save(grad_z_vec, grad_path_name)
 
+                # grad_z_vec = torch.cat([x.reshape(-1) for x in grad_z_vec])
+                # print(process_id, "cat and reshape grad_z", time.time() - time_point)
+                # time_point = time.time()
                 for i in range(len(test_dataset)):
-                    s_test_vec = [x.data.to(rank) for x in s_test_vec_list[i]]
-                    influence = -sum(
-                        [
-                            torch.sum(k * j).data.cpu().numpy()
-                            # torch.sum(k * j)
-                            # for k, j in zip(grad_z_vec, s_test_vec_list[i])
-                            for k, j in zip(grad_z_vec, s_test_vec)
-                        ]) / train_dataset_size
+                    # s_test_vec = [x.data.to(rank) for x in s_test_vec_list[i]]
+                    # s_test_vec = torch.cat([x.reshape(-1) for x in s_test_vec])
+                    influence = -torch.sum(torch.dot(grad_z_vec, s_test_vec)).cpu().numpy() / train_dataset_size
+
+#                     influence = -sum(
+#                         [
+#                             torch.sum(k * j).data.cpu().numpy()
+#                             # torch.sum(k * j)
+#                             # for k, j in zip(grad_z_vec, s_test_vec_list[i])
+#                             for k, j in zip(grad_z_vec, s_test_vec)
+#                         ]) / train_dataset_size
 
                     if influence != influence: # check if influence is Nan
                         raise Exception('Got unexpected Nan influence!')
@@ -154,21 +161,21 @@ def MP_run_get_result(config, mp_engine):
     for k in range(test_dataset_size):
         influences[k] = {}
         influences[k]['test_data'] = test_data_dicts[k]
-
+    
     infl_list = [[0 for _ in range(train_dataset_size)] for _ in range(test_dataset_size)]
     real_id2shuffled_id = {}
     shuffled_id2real_id = {}
-
+    
     total_size = test_dataset_size * train_dataset_size
-
+    
     i = 0
     while True:
         try:
-            result_item = mp_engine.result_q.get(block=True, timeout=120)
+            result_item = mp_engine.result_q.get(block=True, timeout=300)
         except Exception as e:
             print("Cal Influence Function Finished!")
             break
-
+    
         if result_item is None:
             save_json(influences, influences_path, overwrite_if_exists=True)
             raise Exception("Get unexpected result from queue.")
@@ -176,17 +183,17 @@ def MP_run_get_result(config, mp_engine):
         # print(f"get, i: {i} real_id: {real_id}")
         if influence != influence: # check if influence is Nan
             raise Exception('Got unexpected Nan influence!')
-
+    
         infl_list[test_id][shuffled_id] = influence
         real_id2shuffled_id[real_id] = shuffled_id
         shuffled_id2real_id[shuffled_id] = real_id
         with mp_engine.finished_idx.get_lock():
             mp_engine.finished_idx[shuffled_id] = True # due to the calculating retrive data by shuffled_id
         display_progress("Calc. influence function: ", i, total_size, cur_time=time.time())
-
+    
         topk_num = int(config['influence']['top_k'])
     
-        if (i + 1)%500 == 0 or i == total_size - 1:
+        if (i + 1)%5000 == 0 or i == total_size - 1:
             for j in range(test_dataset_size):
                 helpful_shuffle_ids = np.argsort(infl_list[j]).tolist()
                 helpful = [ shuffled_id2real_id[x] for x in helpful_shuffle_ids if x in shuffled_id2real_id.keys() ]
@@ -205,6 +212,17 @@ def MP_run_get_result(config, mp_engine):
             influences_path = save_json(influences, influences_path, overwrite_if_exists=True)
         # print(f"i: {i} real_id: {real_id}")
         i += 1
+        if i >= total_size:
+            finished = True
+            with mp_engine.finished_idx.get_lock():
+                for idx in range(train_dataset_size):
+                    if mp_engine.finished_idx[idx] == False:
+                        print("Warning: i >= total_size, but it have not finished!")
+                        finished = False
+                        break
+            if finished == True:
+                break
+
     # print(helpful, len(helpful))
 
     if config['influence']['cal_words_infl'] == True:
@@ -227,7 +245,7 @@ def MP_run_get_result(config, mp_engine):
             # for i in range(infl_num):
             while True:
                 try:
-                    result_item = mp_engine.result_q.get(block=True, timeout=120)
+                    result_item = mp_engine.result_q.get(block=True, timeout=300)
                 except Exception as e:
                     print(e)
                     break
@@ -244,8 +262,22 @@ def MP_run_get_result(config, mp_engine):
                 word_infl_dict[real_id] = word_influence.tolist() if not isinstance(word_influence, list) else word_influence
                 display_progress(f"Calc. word influence for test {j + 1}/{test_dataset_size}", i, infl_num, cur_time=time.time())
                 i += 1
+                if i >= infl_num:
+                    finished = True
+                    with mp_engine.finished_idx.get_lock():
+                        for idx in range(train_dataset_size):
+                            if mp_engine.finished_idx[idx] == False:
+                                print("Warning: i >= total_size, but it have not finished!")
+                                finished = False
+                                break
+                    if finished == True:
+                        break
             influences[j]['word_influence'] = word_infl_dict
-            influences_path = save_json(influences, influences_path, overwrite_if_exists=True)
+            try:
+                influences_path = save_json(influences, influences_path, overwrite_if_exists=True)
+            except Exception as e:
+                print(influences)
+                print(e)
             # print(done_id, len(done_id))
 
     # display_progress("Test samples processed: ", k, test_dataset_size, new_line=True, run_time=time.time()-result_start_time)
@@ -301,7 +333,7 @@ def calc_infl_mp(config):
     for i in range(gpu_num):
         for j in range(threads_per_gpu):
             mp_handler.append(mp.Process(target=MP_run_calc_infulence_function, args=(i, gpu_num, i*threads_per_gpu + j, config, mp_engine,)))
-    mp_handler.append(mp.Process(target=MP_run_get_result, args=(config, mp_engine,)))
+    mp_handler.append(mp.Process(target=MP_run_get_result, args=(config, mp_engine)))
 
     for x in mp_handler:
         x.start()

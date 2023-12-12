@@ -4,9 +4,11 @@ import logging
 from pathlib import Path
 from datetime import datetime as dt
 import datetime
+from tqdm import tqdm
 
 run_time_records = {}
 start_time_records = {}
+tqdm_dict = {}
 def save_json(json_obj, json_path, append_if_exists=False,
               overwrite_if_exists=False, unique_fn_if_exists=True):
     """Saves a json file
@@ -57,6 +59,24 @@ def save_json(json_obj, json_path, append_if_exists=False,
 
     return json_path
 
+def load_json(json_path, key2int=True):
+    def covert_key_to_int(d):
+        new_dict = {}
+        for k, v in d.items():
+            if k.isnumeric() == True:
+                k = int(k)
+            if isinstance(v, dict):
+                v = covert_key_to_int(v)
+            new_dict[k] = v
+        return new_dict
+
+    with open(json_path, 'r') as f:
+        result = json.load(f)
+
+    result = covert_key_to_int(result)
+    return result
+
+
 
 def display_progress(text, current_step, last_step, enabled=True,
                      fix_zero_start=True, new_line=False, run_time=None, cur_time=None):
@@ -79,6 +99,14 @@ def display_progress(text, current_step, last_step, enabled=True,
     # Fix display for most loops which start with 0, otherwise looks weird
     if fix_zero_start:
         current_step = current_step + 1
+
+    ##########
+    if text not in tqdm_dict.keys():
+        tqdm_dict[text] = tqdm(total=last_step, desc=text)
+    tqdm_dict[text].n = current_step
+    tqdm_dict[text].refresh()
+    return
+    ##########
 
     term_line_len = 80
     final_chars = [':', ';', ' ', '.', ',']

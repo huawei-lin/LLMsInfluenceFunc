@@ -105,13 +105,15 @@ def calc_s_test_single(model, z_test, t_test, input_len, train_loader, gpu=-1,
                gpu=gpu, damp=damp, scale=scale,
                recursion_depth=recursion_depth)
         # cur = [x.data.cpu() for x in cur]
-        res = [a + c for a, c in zip(res, cur)]
+        # res = [a + c for a, c in zip(res, cur)]
+        res = res + cur
         min_nan_depth = min(min_nan_depth, nan_depth)
         # display_progress("Averaging r-times: ", i, r, run_time=time.time()-start_time)
 
     if min_nan_depth != recursion_depth:
         print(f"Warning: get Nan value after depth {min_nan_depth}, current recursion_depth = {min_nan_depth}")
-    res = [a / r for a in res]
+    # res = [a / r for a in res]
+    res = res/r
 
     return res
 
