@@ -52,6 +52,7 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                                         scale=config['influence']['scale'],
                                         r=config['influence']['r_averaging'])
         # s_test_vec = [x.data.cpu() for x in s_test_vec]
+        s_test_vec = s_test_vec.cpu()
         s_test_vec_list.append(s_test_vec)
         display_progress("Calc. s test vector: ", i, test_dataset_size, cur_time=time.time())
 
@@ -91,6 +92,8 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                     grad_path_name = config["influence"]["grads_path"] + f"/train_grad_{real_id:08d}.pt"
                 if grad_path_name is not None and os.path.exists(grad_path_name):
                     grad_z_vec = torch.load(grad_path_name, map_location=model.device)
+                    if isinstance(grad_z_vec, list):
+                        grad_z_vec = torch.cat([x.reshape(-1) for x in grad_z_vec])
                 else:
                     grad_z_vec = grad_z(z, t, input_len, model, gpu=rank)
                     if grad_path_name is not None:
@@ -102,6 +105,7 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                 for i in range(len(test_dataset)):
                     # s_test_vec = [x.data.to(rank) for x in s_test_vec_list[i]]
                     # s_test_vec = torch.cat([x.reshape(-1) for x in s_test_vec])
+                    s_test_vec = s_test_vec_list[i].to(rank)
                     influence = -torch.sum(torch.dot(grad_z_vec, s_test_vec)).cpu().numpy() / train_dataset_size
 
 #                     influence = -sum(
@@ -189,7 +193,6 @@ def MP_run_get_result(config, mp_engine):
         shuffled_id2real_id[shuffled_id] = real_id
         with mp_engine.finished_idx.get_lock():
             mp_engine.finished_idx[shuffled_id] = True # due to the calculating retrive data by shuffled_id
-        display_progress("Calc. influence function: ", i, total_size, cur_time=time.time())
     
         topk_num = int(config['influence']['top_k'])
     
@@ -210,6 +213,7 @@ def MP_run_get_result(config, mp_engine):
                 influences[j]['harmful_infl'] = copy([infl[x] for x in helpful_shuffle_ids[-topk_num:][::-1]])
             influences['finished_cnt'] = f"{i + 1}/{total_size}"
             influences_path = save_json(influences, influences_path, overwrite_if_exists=True)
+            display_progress("Calc. influence function: ", i, total_size, cur_time=time.time())
         # print(f"i: {i} real_id: {real_id}")
         i += 1
         if i >= total_size:
