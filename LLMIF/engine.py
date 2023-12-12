@@ -18,9 +18,30 @@ from copy import copy
 import logging
 import datetime
 import os
+from torch.autograd import grad
 
 MAX_CAPACITY = 2048
 MAX_DATASET_SIZE = int(1e8)
+
+def calc_loss(y, t):
+    """Calculates the loss
+
+    Arguments:
+        y: torch tensor, input with size (minibatch, nr_of_classes)
+        t: torch tensor, target expected by loss of size (0 to nr_of_classes-1)
+
+    Returns:
+        loss: scalar, the loss"""
+#     # Shift so that tokens < n predict n
+#     y = y[..., :-1, :].contiguous()
+#     t = t[..., 1:].contiguous()
+
+    bs, _, vocab_size = y.shape
+    y = y.reshape(-1, vocab_size)
+    t = t.reshape(-1)
+
+    loss = torch.nn.functional.cross_entropy(y, t)
+    return loss
 
 def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engine):
     print(f"rank: {rank}, world_size: {world_size}")
@@ -45,15 +66,27 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
     test_dataset_size = len(test_dataset)
     for i in range(test_dataset_size):
         z_test, t_test, input_len = test_dataset[i]
-        z_test = default_collate([z_test])
-        t_test = default_collate([t_test])
-        s_test_vec = calc_s_test_single(model, z_test, t_test, input_len, train_loader,
-                                        rank, recursion_depth=config['influence']['recursion_depth'],
-                                        scale=config['influence']['scale'],
-                                        r=config['influence']['r_averaging'])
-        # s_test_vec = [x.data.cpu() for x in s_test_vec]
+        x = default_collate([z_test])
+        t = default_collate([t_test])
+        if rank >= 0:
+            x, t = x.cuda(rank), t.cuda(rank)
+
+        with torch.cuda.amp.autocast(dtype=torch.float16):
+            y = model(x)
+            y = y.logits
+            loss = calc_loss(y, t)
+            params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
+            params = params[-20:]
+
+            grads = grad(loss, params)
+
+        # s_test_vec = [x.data.cpu() for x in grads]
+        s_test_vec = torch.cat([x.reshape(-1) for x in grads])
         s_test_vec_list.append(s_test_vec)
         display_progress("Calc. s test vector: ", i, test_dataset_size, cur_time=time.time())
+
+        model.zero_grad(set_to_none=True)
+        torch.cuda.empty_cache()
 
     idx = 0
     mp_engine.start_barrier.wait()
@@ -92,17 +125,26 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                 if grad_path_name is not None and os.path.exists(grad_path_name):
                     grad_z_vec = torch.load(grad_path_name, map_location=model.device)
                 else:
-                    grad_z_vec = grad_z(z, t, input_len, model, gpu=rank)
-                    if grad_path_name is not None:
-                        torch.save(grad_z_vec, grad_path_name)
+                    if rank >= 0:
+                        z, t = z.cuda(rank), t.cuda(rank)
 
-                # grad_z_vec = torch.cat([x.reshape(-1) for x in grad_z_vec])
-                # print(process_id, "cat and reshape grad_z", time.time() - time_point)
-                # time_point = time.time()
+                    with torch.cuda.amp.autocast(dtype=torch.float16):
+                        y = model(z)
+                        y = y.logits
+                        loss = calc_loss(y, t)
+                        params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
+                        params = params[-20:]
+
+                        grad_z_vec = grad(loss, params)
+
+                    model.zero_grad(set_to_none=True)
+                    torch.cuda.empty_cache()
+
+                grad_z_vec = torch.cat([x.reshape(-1) for x in grad_z_vec])
                 for i in range(len(test_dataset)):
                     # s_test_vec = [x.data.to(rank) for x in s_test_vec_list[i]]
                     # s_test_vec = torch.cat([x.reshape(-1) for x in s_test_vec])
-                    influence = -torch.sum(torch.dot(grad_z_vec, s_test_vec)).cpu().numpy() / train_dataset_size
+                    influence = torch.sum(torch.dot(grad_z_vec, s_test_vec_list[i])).cpu().numpy()
 
 #                     influence = -sum(
 #                         [
@@ -195,9 +237,9 @@ def MP_run_get_result(config, mp_engine):
     
         if (i + 1)%5000 == 0 or i == total_size - 1:
             for j in range(test_dataset_size):
-                helpful_shuffle_ids = np.argsort(infl_list[j]).tolist()
-                helpful = [ shuffled_id2real_id[x] for x in helpful_shuffle_ids if x in shuffled_id2real_id.keys() ]
-                harmful = helpful[::-1]
+                harmful_shuffle_ids = np.argsort(infl_list[j]).tolist()
+                harmful = [ shuffled_id2real_id[x] for x in harmful_shuffle_ids if x in shuffled_id2real_id.keys() ]
+                helpful = harmful[::-1]
             
                 infl = [ x.tolist() if not isinstance(x, int) else x for x in infl_list[j] ]
                 # words_infl = [ x.tolist() if not isinstance(x, list) else x for x in words_infl_list ]
@@ -205,9 +247,9 @@ def MP_run_get_result(config, mp_engine):
                 helpful_topk = helpful[:topk_num]
                 harmful_topk = harmful[:topk_num]
                 influences[j]['helpful'] = copy(helpful_topk)
-                influences[j]['helpful_infl'] = copy([infl[x] for x in helpful_shuffle_ids[:topk_num]])
+                influences[j]['helpful_infl'] = copy([infl[x] for x in harmful_shuffle_ids[-topk_num:][::-1]])
                 influences[j]['harmful'] = copy(harmful_topk)
-                influences[j]['harmful_infl'] = copy([infl[x] for x in helpful_shuffle_ids[-topk_num:][::-1]])
+                influences[j]['harmful_infl'] = copy([infl[x] for x in harmful_shuffle_ids[:topk_num]])
             influences['finished_cnt'] = f"{i + 1}/{total_size}"
             influences_path = save_json(influences, influences_path, overwrite_if_exists=True)
         # print(f"i: {i} real_id: {real_id}")
