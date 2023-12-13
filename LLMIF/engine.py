@@ -76,7 +76,7 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
             y = y.logits
             loss = calc_loss(y, t)
             params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
-            params = params[-10:]
+            params = params[-20:]
 
             grads = grad(loss, params)
 
@@ -119,8 +119,8 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                     grad_path_name = config["influence"]["grads_path"] + f"/train_grad_{real_id:08d}.pt"
                 if grad_path_name is not None and os.path.exists(grad_path_name):
                     grad_z_vec = torch.load(grad_path_name, map_location=model.device)
-                    # if isinstance(grad_z_vec, list):
-                    #     grad_z_vec = torch.cat([x.reshape(-1) for x in grad_z_vec])
+                    if isinstance(grad_z_vec, list):
+                        grad_z_vec = torch.cat([x.reshape(-1) for x in grad_z_vec])
                 else:
                     z = train_loader.collate_fn([z])
                     t = train_loader.collate_fn([t])
@@ -137,7 +137,7 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                         y = y.logits
                         loss = calc_loss(y, t)
                         params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
-                        params = params[-10:]
+                        params = params[-20:]
 
                         grad_z_vec = grad(loss, params)
 

@@ -14,6 +14,8 @@ import transformers
 import LLMIF as llmif
 from LLMIF import TrainDataset, TestDataset
 import torch.multiprocessing as mp
+import random
+import numpy as np
 
 CONFIG_PATH = "/home/hl3352/LLMs/LLMsInfluenceFunc/configs/config_test.json"
 
@@ -26,6 +28,9 @@ def main():
     llmif.init_logging()
     config = llmif.get_config(config_path)
     print(config)
+
+    random.seed(int(config["influence"]["seed"]))
+    np.random.seed(int(config["influence"]["seed"]))
 
     infl = llmif.calc_infl_mp(config)
     print("Finished")
