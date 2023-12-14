@@ -163,7 +163,7 @@ class TrainDataset(Dataset):
 
         s = list(range(len(load_idx_list)))
         if shuffle == True:
-            # random.seed(shuffle_seed)
+            random.seed(shuffle_seed)
             random.shuffle(s)
 
         self.input_ids = [ data_dict["input_ids"][i] for i in s ]
