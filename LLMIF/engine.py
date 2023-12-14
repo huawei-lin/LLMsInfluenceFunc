@@ -52,7 +52,7 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                                         scale=config['influence']['scale'],
                                         r=config['influence']['r_averaging'])
         # s_test_vec = [x.data.cpu() for x in s_test_vec]
-        s_test_vec = s_test_vec.cpu()
+        # s_test_vec = s_test_vec.cpu()
         s_test_vec_list.append(s_test_vec)
         display_progress("Calc. s test vector: ", i, test_dataset_size, cur_time=time.time())
 
@@ -105,7 +105,7 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                 for i in range(len(test_dataset)):
                     # s_test_vec = [x.data.to(rank) for x in s_test_vec_list[i]]
                     # s_test_vec = torch.cat([x.reshape(-1) for x in s_test_vec])
-                    s_test_vec = s_test_vec_list[i].to(rank)
+                    # s_test_vec = s_test_vec_list[i].to(rank)
                     influence = -torch.sum(torch.dot(grad_z_vec, s_test_vec)).cpu().numpy() / train_dataset_size
 
 #                     influence = -sum(
@@ -195,6 +195,7 @@ def MP_run_get_result(config, mp_engine):
             mp_engine.finished_idx[shuffled_id] = True # due to the calculating retrive data by shuffled_id
     
         topk_num = int(config['influence']['top_k'])
+        display_progress("Calc. influence function: ", i, total_size, cur_time=time.time())
     
         if (i + 1)%5000 == 0 or i == total_size - 1:
             for j in range(test_dataset_size):
@@ -213,7 +214,6 @@ def MP_run_get_result(config, mp_engine):
                 influences[j]['harmful_infl'] = copy([infl[x] for x in helpful_shuffle_ids[-topk_num:][::-1]])
             influences['finished_cnt'] = f"{i + 1}/{total_size}"
             influences_path = save_json(influences, influences_path, overwrite_if_exists=True)
-            display_progress("Calc. influence function: ", i, total_size, cur_time=time.time())
         # print(f"i: {i} real_id: {real_id}")
         i += 1
         if i >= total_size:
@@ -235,7 +235,8 @@ def MP_run_get_result(config, mp_engine):
             word_infl_dict = {}
             done_id = []
 
-            infl_num = len(set(influences[j]['helpful'] + influences[j]['harmful']))
+            infl_idx = set(influences[j]['helpful'] + influences[j]['harmful'])
+            infl_num = len(infl_idx)
             # print(influences[j]['helpful'])
             with mp_engine.train_idx.get_lock(), mp_engine.finished_idx.get_lock(), mp_engine.cal_word_infl.get_lock():
                 for x in influences[j]['helpful']:
@@ -269,7 +270,7 @@ def MP_run_get_result(config, mp_engine):
                 if i >= infl_num:
                     finished = True
                     with mp_engine.finished_idx.get_lock():
-                        for idx in range(train_dataset_size):
+                        for idx in infl_idx:
                             if mp_engine.finished_idx[idx] == False:
                                 print("Warning: i >= total_size, but it have not finished!")
                                 finished = False

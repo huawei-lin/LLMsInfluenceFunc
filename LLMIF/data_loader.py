@@ -20,7 +20,7 @@ DEFAULT_UNK_TOKEN = "<unk>"
 prompt_no_input = \
     "Below is an instruction that describes a task. " \
     "Write a response that appropriately completes the request.\n\n" \
-    "### Instruction:\n{instruction}\n\n### Response:"
+    "### Instruction:\n{instruction}\n\n### Response: "
 
 def get_model_tokenizer(config, **kwargs):
     model = get_model(config, **kwargs)
@@ -163,7 +163,7 @@ class TrainDataset(Dataset):
 
         s = list(range(len(load_idx_list)))
         if shuffle == True:
-            # random.seed(shuffle_seed)
+            random.seed(shuffle_seed)
             random.shuffle(s)
 
         self.input_ids = [ data_dict["input_ids"][i] for i in s ]
