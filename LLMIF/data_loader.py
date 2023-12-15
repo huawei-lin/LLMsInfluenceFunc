@@ -202,9 +202,11 @@ class TestDataset(Dataset):
         data_dict = preprocess(sources, targets, tokenizer)
         
         print(f"Detected hotwords: {hotwords}")
+        # self.cont_labels = []
         self.labels = []
         for hotwords_list, label_tokens in zip(hotwords, data_dict["labels"]):
             if len(hotwords_list) == 0:
+                # self.cont_labels.append(None)
                 self.labels.append(label_tokens)
                 continue
             label_tokens = label_tokens.tolist()
@@ -218,11 +220,13 @@ class TestDataset(Dataset):
                         break
                     if hotword == label_tokens[i:i + hotword_len]:
                         new_label[i:i + hotword_len] = label_tokens[i:i + hotword_len]
+            # self.cont_labels.append(torch.LongTensor([IGNORE_INDEX if x > 0 else y for x, y in zip(new_label, label_tokens)]))
+            # self.cont_labels.append(torch.LongTensor(new_label))
             self.labels.append(torch.LongTensor(new_label))
 
         self.list_data_dict = list_data_dict
         self.input_ids = data_dict["input_ids"]
-        # self.labels = data_dict["labels"]
+        # self.labels = [(a, b) for a, b in zip(data_dict["labels"], self.cont_labels)]
         self.input_ids_lens = data_dict["input_ids_lens"]
         self.hotwords = hotwords
 

@@ -44,16 +44,25 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
     s_test_vec_list = []
     test_dataset_size = len(test_dataset)
     for i in range(test_dataset_size):
-        z_test, t_test, input_len = test_dataset[i]
-        z_test = default_collate([z_test])
-        t_test = default_collate([t_test])
-        s_test_vec = calc_s_test_single(model, z_test, t_test, input_len, train_loader,
-                                        rank, recursion_depth=config['influence']['recursion_depth'],
-                                        scale=config['influence']['scale'],
-                                        r=config['influence']['r_averaging'])
-        # s_test_vec = [x.data.cpu() for x in s_test_vec]
-        # s_test_vec = s_test_vec.cpu()
-        s_test_vec_list.append(s_test_vec)
+        with mp_engine.gpu_locks[rank].get_lock():
+            # z_test, (t_test, t_cont_test), input_len = test_dataset[i]
+            z_test, t_test, input_len = test_dataset[i]
+            z_test = default_collate([z_test])
+            t_test = default_collate([t_test])
+#             s_cont_test_vec = 0
+#             if t_cont_test is not None:
+#                 t_cont_test = default_collate([t_cont_test])
+#                 s_cont_test_vec = calc_s_test_single(model, z_test, t_cont_test, input_len, train_loader,
+#                                                 rank, recursion_depth=config['influence']['recursion_depth'],
+#                                                 scale=config['influence']['scale'],
+#                                                 r=config['influence']['r_averaging'])
+            s_test_vec = calc_s_test_single(model, z_test, t_test, input_len, train_loader,
+                                            rank, recursion_depth=config['influence']['recursion_depth'],
+                                            scale=config['influence']['scale'],
+                                            r=config['influence']['r_averaging'])
+            # s_test_vec = s_test_vec.cpu()
+            # s_test_vec_list.append(s_test_vec if t_cont_test is None else s_cont_test_vec + s_test_vec)
+            s_test_vec_list.append(s_test_vec)
         display_progress("Calc. s test vector: ", i, test_dataset_size, cur_time=time.time())
 
     idx = 0
@@ -295,6 +304,8 @@ def MP_run_get_result(config, mp_engine):
 class MPEngine:
     def __init__(self, world_size):
         self.result_q = Queue(maxsize=MAX_CAPACITY)
+
+        self.gpu_locks = [Value(c_int, 0) for _ in range(world_size)]
 
         self.train_idx = Value(c_int, 0)
 

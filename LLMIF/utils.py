@@ -5,6 +5,7 @@ from pathlib import Path
 from datetime import datetime as dt
 import datetime
 from tqdm import tqdm
+import collections.abc
 
 run_time_records = {}
 start_time_records = {}
@@ -220,6 +221,13 @@ def get_default_config():
 
 def get_config(config_path):
     """Returns a  config file"""
+    def update(d, u):
+        for k, v in u.items():
+            if isinstance(v, collections.abc.Mapping):
+                d[k] = update(d.get(k, {}), v)
+            else:
+                d[k] = v
+        return d
     config = get_default_config()
-    config.update(json.load(open(config_path)))
+    config = update(config, json.load(open(config_path)))
     return config

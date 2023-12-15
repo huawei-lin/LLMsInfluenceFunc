@@ -64,7 +64,7 @@ def s_test(z_test, t_test, input_len, model, z_loader, gpu=-1, damp=0.01, scale=
             loss = calc_loss(y, t)
             loss = loss.mean(dim=1)
             params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
-            params = params[-20:]
+            # params = params[-40:]
             hv = hvp(loss, params, h_estimate)
 
         model.zero_grad(set_to_none=True)
@@ -143,7 +143,7 @@ def grad_z(z, t, input_len, model, gpu=-1, return_words_loss=False, s_test_vec=N
         loss_mean = loss.mean()
         # Compute sum of gradients from model parameters to loss
         params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2]
-        params = params[-20:]
+        # params = params[-40:]
         # grad_loss = [x.cpu() for x in grad(loss[0], params)]
         words_influence = []
         if return_words_loss == True and s_test_vec is not None:
