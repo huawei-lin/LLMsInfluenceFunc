@@ -106,7 +106,7 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                     # s_test_vec = [x.data.to(rank) for x in s_test_vec_list[i]]
                     # s_test_vec = torch.cat([x.reshape(-1) for x in s_test_vec])
                     # s_test_vec = s_test_vec_list[i].to(rank)
-                    influence = -torch.sum(torch.dot(grad_z_vec, s_test_vec)).cpu().numpy() / train_dataset_size
+                    influence = -torch.sum(torch.dot(grad_z_vec, s_test_vec_list[i])).cpu().numpy() / train_dataset_size
 
 #                     influence = -sum(
 #                         [
