@@ -68,8 +68,8 @@ def s_test(z_test, t_test, input_len, model, z_loader, gpu=-1, damp=0.01, scale=
             hv = hvp(loss, params, h_estimate)
 
         model.zero_grad(set_to_none=True)
-        torch.cuda.empty_cache()
         gc.collect()
+        torch.cuda.empty_cache()
 
         # Recursively caclulate h_estimate
 #         h_estimate_temp = [
@@ -153,22 +153,22 @@ def grad_z(z, t, input_len, model, gpu=-1, return_words_loss=False, s_test_vec=N
                     words_influence.append(0)
                     continue
                 # word_grad = list(x.cpu() for x in word_grad)
-#                 influence = -sum(
-#                     [
-#                         torch.sum(k * j).data.cpu().numpy()
-#                         for k, j in zip(list(grad(loss[i], params, retain_graph=True)), s_test_vec)
-#                     ])
-
+    #             influence = -sum(
+    #                 [
+    #                     torch.sum(k * j).data.cpu().numpy()
+    #                     for k, j in zip(list(grad(loss[i], params, retain_graph=True)), s_test_vec)
+    #                 ])
+    
                 grads = torch.cat([x.reshape(-1) for x in list(grad(loss[i], params, retain_graph=True))])
                 influence = -torch.sum(torch.dot(grads, s_test_vec)).cpu().numpy()
                 words_influence.append(float(influence))
-
+    
         grad_loss = torch.cat([x.reshape(-1) for x in list(grad(loss_mean, params))])
-
+    
         model.zero_grad(set_to_none=True)
-        torch.cuda.empty_cache()
         gc.collect()
-
+        torch.cuda.empty_cache()
+    
         return grad_loss if return_words_loss == False else (grad_loss, words_influence)
 
 

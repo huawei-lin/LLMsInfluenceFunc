@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 from ctypes import c_bool, c_int
 import torch
 from LLMIF.calc_inner import grad_z
-from LLMIF.data_loader import get_model_tokenizer, TrainDataset, TestDataset
+from LLMIF.data_loader import get_model_tokenizer, TrainDataset, TestDataset, get_tokenizer, get_model
 from LLMIF.data_loader import get_dataset_size, read_data
 from LLMIF.influence_function import calc_s_test_single
 from LLMIF.utils import save_json, display_progress, load_json
@@ -18,15 +18,17 @@ from copy import copy
 import logging
 import datetime
 import os
+import pickle
+import gc
 
 MAX_CAPACITY = 2048
 MAX_DATASET_SIZE = int(1e8)
 
 def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engine):
     print(f"rank: {rank}, world_size: {world_size}")
-    model, tokenizer = get_model_tokenizer(config['model'], device_map=f"cuda:{rank}")
-    model = model.to(rank)
-    print(f"CUDA {rank}: Model loaded!")
+    # model, tokenizer = get_model_tokenizer(config['model'], device_map=f"cuda:{rank}")
+    tokenizer = get_tokenizer(config['model'], device_map=f"cuda:{rank}")
+    print(f"CUDA {rank}: tokenizer loaded!")
 
     # train_dataset = TrainDataset(config['data']['train_data_path'], tokenizer, shuffle=False, load_idx_list=load_idx_list)
     train_dataset = TrainDataset(config['data']['train_data_path'], tokenizer)
@@ -41,32 +43,50 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
     with mp_engine.test_dataset_size.get_lock():
         mp_engine.test_dataset_size.value = len(test_dataset)
 
+    svd_model = None
+    with open(config["influence"]["svd_model_path"], 'rb') as fp:
+        svd_model = pickle.load(fp)
+    print("SVD Loaded!")
+
+
     s_test_vec_list = []
     test_dataset_size = len(test_dataset)
-    for i in range(test_dataset_size):
-        with mp_engine.gpu_locks[rank].get_lock():
+    with mp_engine.gpu_locks[rank].get_lock():
+        model = get_model(config['model'], device_map=f"cuda:{rank}")
+        print(f"CUDA {rank}: model temporary loaded!")
+        for i in range(test_dataset_size):
             # z_test, (t_test, t_cont_test), input_len = test_dataset[i]
             z_test, t_test, input_len = test_dataset[i]
             z_test = default_collate([z_test])
             t_test = default_collate([t_test])
-#             s_cont_test_vec = 0
-#             if t_cont_test is not None:
-#                 t_cont_test = default_collate([t_cont_test])
-#                 s_cont_test_vec = calc_s_test_single(model, z_test, t_cont_test, input_len, train_loader,
-#                                                 rank, recursion_depth=config['influence']['recursion_depth'],
-#                                                 scale=config['influence']['scale'],
-#                                                 r=config['influence']['r_averaging'])
             s_test_vec = calc_s_test_single(model, z_test, t_test, input_len, train_loader,
                                             rank, recursion_depth=config['influence']['recursion_depth'],
                                             scale=config['influence']['scale'],
                                             r=config['influence']['r_averaging'])
+
             # s_test_vec = s_test_vec.cpu()
             # s_test_vec_list.append(s_test_vec if t_cont_test is None else s_cont_test_vec + s_test_vec)
+            # print("before dims red:", s_test_vec.shape)
+            s_test_vec = s_test_vec.reshape((-1, 4096))
+            s_test_vec = svd_model.transform(s_test_vec.cpu())
+            # begin_time = time.time()
+            # print("transform test:", time.time() - begin_time)
+            # print("after dims red:", s_test_vec.shape)
             s_test_vec_list.append(s_test_vec)
+        del model, z_test, t_test
+        gc.collect()
+        torch.cuda.empty_cache()
+        # put all parameters in cpu
         display_progress("Calc. s test vector: ", i, test_dataset_size, cur_time=time.time())
 
     idx = 0
     mp_engine.start_barrier.wait()
+
+    # put everything back to gpu
+    model = get_model(config['model'], device_map=f"cuda:{rank}")
+    print(f"CUDA {rank}: model loaded!")
+    s_test_vec_list = [torch.from_numpy(x).to(rank).reshape((-1))[::2] for x in s_test_vec_list] ###
+
     while True:
         cal_word_infl = -1
 
@@ -93,8 +113,6 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                 t = torch.squeeze(t, 0)
 
             if cal_word_infl < 0:
-                # grad_z_vec = grad_z(z, t, input_len, model, gpu=rank)
-                # grad_z_vec = [x.data.cpu() for x in grad_z_vec]
                 grad_z_vec = None
                 grad_path_name = None
                 if config["influence"]["grads_path"] is not None and len(config["influence"]["grads_path"]) != 0:
@@ -108,6 +126,14 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                     if grad_path_name is not None:
                         torch.save(grad_z_vec, grad_path_name)
 
+                # print("before dims red:", grad_z_vec.shape)
+                grad_z_vec = grad_z_vec.reshape((-1, 4096))
+                grad_z_vec = svd_model.transform(grad_z_vec.cpu())
+                begin_time = time.time()
+                # grad_z_vec = grad_z_vec.reshape((-1))
+                grad_z_vec = torch.from_numpy(grad_z_vec).reshape((-1)).to(rank)[::2] ###
+                # print("transform test:", time.time() - begin_time)
+                # print("after dims red:", grad_z_vec.shape)
                 # grad_z_vec = torch.cat([x.reshape(-1) for x in grad_z_vec])
                 # print(process_id, "cat and reshape grad_z", time.time() - time_point)
                 # time_point = time.time()
@@ -115,6 +141,7 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                     # s_test_vec = [x.data.to(rank) for x in s_test_vec_list[i]]
                     # s_test_vec = torch.cat([x.reshape(-1) for x in s_test_vec])
                     # s_test_vec = s_test_vec_list[i].to(rank)
+                    # influence = -np.sum(np.dot(grad_z_vec, s_test_vec_list[i])) / train_dataset_size
                     influence = -torch.sum(torch.dot(grad_z_vec, s_test_vec_list[i])).cpu().numpy() / train_dataset_size
 
 #                     influence = -sum(

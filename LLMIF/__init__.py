@@ -22,3 +22,7 @@ from .utils import (
 from .unlearning import (
     Unlearner
 )
+from .dims_reduce import (
+   train_dims_reduction,
+   collect_result
+)
