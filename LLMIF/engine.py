@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 from ctypes import c_bool, c_int
 import torch
 from LLMIF.calc_inner import grad_z
-from LLMIF.data_loader import get_model_tokenizer, TrainDataset, TestDataset
+from LLMIF.data_loader import get_model_tokenizer, TrainDataset, TestDataset, get_tokenizer, get_model
 from LLMIF.data_loader import get_dataset_size, read_data
 from LLMIF.influence_function import calc_s_test_single
 from LLMIF.utils import save_json, display_progress, load_json
@@ -18,15 +18,17 @@ from copy import copy
 import logging
 import datetime
 import os
+import gc
 
 MAX_CAPACITY = 2048
 MAX_DATASET_SIZE = int(1e8)
 
 def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engine):
     print(f"rank: {rank}, world_size: {world_size}")
-    model, tokenizer = get_model_tokenizer(config['model'], device_map=f"cuda:{rank}")
-    model = model.to(rank)
-    print(f"CUDA {rank}: Model loaded!")
+    # model, tokenizer = get_model_tokenizer(config['model'], device_map=f"cuda:{rank}")
+    tokenizer = get_tokenizer(config['model'], device_map=f"cuda:{rank}")
+    # model = model.to(rank)
+    print(f"CUDA {rank}: Tokenizer loaded!")
 
     # train_dataset = TrainDataset(config['data']['train_data_path'], tokenizer, shuffle=False, load_idx_list=load_idx_list)
     train_dataset = TrainDataset(config['data']['train_data_path'], tokenizer)
@@ -43,8 +45,10 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
 
     s_test_vec_list = []
     test_dataset_size = len(test_dataset)
-    for i in range(test_dataset_size):
-        with mp_engine.gpu_locks[rank].get_lock():
+    with mp_engine.gpu_locks[rank].get_lock():
+        model = get_model(config['model'], device_map=f"cuda:{rank}")
+        print(f"CUDA {rank}: model temporary loaded!")
+        for i in range(test_dataset_size):
             # z_test, (t_test, t_cont_test), input_len = test_dataset[i]
             z_test, t_test, input_len = test_dataset[i]
             z_test = default_collate([z_test])
@@ -62,11 +66,18 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                                             r=config['influence']['r_averaging'])
             # s_test_vec = s_test_vec.cpu()
             # s_test_vec_list.append(s_test_vec if t_cont_test is None else s_cont_test_vec + s_test_vec)
-            s_test_vec_list.append(s_test_vec)
+            s_test_vec_list.append(s_test_vec.cpu())
+        del model, z_test, t_test
+        gc.collect()
+        torch.cuda.empty_cache()
         display_progress("Calc. s test vector: ", i, test_dataset_size, cur_time=time.time())
 
     idx = 0
     mp_engine.start_barrier.wait()
+    model = get_model(config['model'], device_map=f"cuda:{rank}")
+    print(f"CUDA {rank}: model loaded!")
+    s_test_vec_list = [x.to(rank) for x in s_test_vec_list]
+
     while True:
         cal_word_infl = -1
 
