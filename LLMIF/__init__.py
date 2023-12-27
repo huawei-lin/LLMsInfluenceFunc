@@ -6,6 +6,9 @@ from .influence_function import (
 from .engine import (
     calc_infl_mp
 )
+from .OPORP import (
+    save_infl_mp
+)
 from .data_loader import (
     get_model_tokenizer,
     get_model,

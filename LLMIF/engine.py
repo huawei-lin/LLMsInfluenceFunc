@@ -24,6 +24,55 @@ import gc
 MAX_CAPACITY = 2048
 MAX_DATASET_SIZE = int(1e8)
 
+D = None
+# K = 32768
+# K = 1048576
+# K = 4194304
+# K = 131072
+K = None
+M = None
+
+random_mat = None
+perm_mat = None
+
+def OPORP(vec, config, map_location=None):
+    global random_mat, perm_mat, K, M, D
+    if K is None:
+        K = int(config["influence"]["OPORP_K"])
+
+    if M is None:
+        M = int(config["influence"]["OPORP_M"])
+
+    if random_mat is None:
+        D = len(vec)
+        if os.path.exists(f"./random_mat_D{D}_M{M}.pt"): random_mat = torch.load(f"./random_mat_D{D}_M{M}.pt", map_location=map_location)
+            # random_mat = random_mat.to(vec.device)
+        else:
+            random_mat = torch.randint(0, 2, (M*D,), dtype=torch.int8, device=vec.device)
+            random_mat[random_mat < 1e-8] = -1
+            torch.save(random_mat, f"./random_mat_D{D}_M{M}.pt")
+
+    if perm_mat is None:
+        D = len(vec)
+        if os.path.exists(f"./perm_mat_D{D}_M{M}.npy"):
+            perm_mat = np.load(f"./perm_mat_D{D}_M{M}.npy")
+        else:
+            perm_mat = np.zeros((M*D))
+            for i in range(M):
+                perm_mat[i*D:(i + 1)*D] = np.random.permutation(D) + (i * D)
+            np.save(f"./perm_mat_D{D}_M{M}.npy", perm_mat)
+
+    vec = vec.repeat(M)
+    vec = vec[perm_mat]
+
+    vec = vec*random_mat
+
+    step = D//K
+    vec = torch.sum(vec.reshape((-1, step)), axis=1)
+
+    return vec
+
+
 def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engine):
     print(f"rank: {rank}, world_size: {world_size}")
     # model, tokenizer = get_model_tokenizer(config['model'], device_map=f"cuda:{rank}")
@@ -43,114 +92,95 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
     with mp_engine.test_dataset_size.get_lock():
         mp_engine.test_dataset_size.value = len(test_dataset)
 
-    svd_model = None
-    with open(config["influence"]["svd_model_path"], 'rb') as fp:
-        svd_model = pickle.load(fp)
-    print("SVD Loaded!")
 
-
-    s_test_vec_list = []
     test_dataset_size = len(test_dataset)
-    with mp_engine.gpu_locks[rank].get_lock():
-        model = get_model(config['model'], device_map=f"cuda:{rank}")
-        print(f"CUDA {rank}: model temporary loaded!")
-        for i in range(test_dataset_size):
-            # z_test, (t_test, t_cont_test), input_len = test_dataset[i]
-            z_test, t_test, input_len = test_dataset[i]
-            z_test = default_collate([z_test])
-            t_test = default_collate([t_test])
+
+    model = get_model(config['model'], device_map=f"cuda:{rank}")
+    print(f"CUDA {rank}: model loaded!")
+
+    mp_engine.start_barrier.wait()
+
+    for i in range(test_dataset_size):
+        # z_test, (t_test, t_cont_test), input_len = test_dataset[i]
+        z_test, t_test, input_len = test_dataset[i]
+        z_test = default_collate([z_test])
+        t_test = default_collate([t_test])
+        with mp_engine.gpu_locks[rank].get_lock():
             s_test_vec = calc_s_test_single(model, z_test, t_test, input_len, train_loader,
                                             rank, recursion_depth=config['influence']['recursion_depth'],
                                             scale=config['influence']['scale'],
                                             r=config['influence']['r_averaging'])
+    
+            # s_test_vec = s_test_vec.reshape((-1, 4096))
+            # s_test_vec = svd_model.transform(s_test_vec.cpu())
+            if config["influence"]["OPORP"] == True:
+                s_test_vec = OPORP(s_test_vec, config, map_location=f"cuda:{rank}")
 
-            # s_test_vec = s_test_vec.cpu()
-            # s_test_vec_list.append(s_test_vec if t_cont_test is None else s_cont_test_vec + s_test_vec)
-            # print("before dims red:", s_test_vec.shape)
-            s_test_vec = s_test_vec.reshape((-1, 4096))
-            s_test_vec = svd_model.transform(s_test_vec.cpu())
-            # begin_time = time.time()
-            # print("transform test:", time.time() - begin_time)
-            # print("after dims red:", s_test_vec.shape)
-            s_test_vec_list.append(s_test_vec)
-        del model, z_test, t_test
+        del z_test, t_test 
         gc.collect()
         torch.cuda.empty_cache()
-        # put all parameters in cpu
-        display_progress("Calc. s test vector: ", i, test_dataset_size, cur_time=time.time())
+    # display_progress("Calc. s test vector: ", i, test_dataset_size, cur_time=time.time())
 
-    idx = 0
-    mp_engine.start_barrier.wait()
-
-    # put everything back to gpu
-    model = get_model(config['model'], device_map=f"cuda:{rank}")
-    print(f"CUDA {rank}: model loaded!")
-    s_test_vec_list = [torch.from_numpy(x).to(rank).reshape((-1))[::2] for x in s_test_vec_list] ###
-
-    while True:
-        cal_word_infl = -1
+        with mp_engine.cur_processes_num.get_lock():
+            print(f"cur_processes_num: {mp_engine.cur_processes_num.value}")
+            mp_engine.test_begin_barrier._parties = mp_engine.cur_processes_num.value
+        mp_engine.test_begin_barrier.wait()
+        idx = 0
 
         while True:
-            with mp_engine.train_idx.get_lock(), mp_engine.finished_idx.get_lock(), mp_engine.cal_word_infl.get_lock():
-                idx = mp_engine.train_idx.value
-                mp_engine.train_idx.value = (mp_engine.train_idx.value + 1)%train_dataset_size
-                if mp_engine.finished_idx[idx] == False:
-                    mp_engine.finished_idx[idx] = True
-                    cal_word_infl = mp_engine.cal_word_infl[idx]
-                    break
-            time.sleep(0.002)
-    
-        if idx >= train_dataset_size:
-            break
+            cal_word_infl = -1
 
-        try:
-            z, t, input_len, real_id = train_loader.dataset[idx]
-            z = train_loader.collate_fn([z])
-            t = train_loader.collate_fn([t])
-            if z.dim() > 2:
-                z = torch.squeeze(z, 0)
-            if t.dim() > 2:
-                t = torch.squeeze(t, 0)
+            while True:
+                with mp_engine.train_idx.get_lock(), mp_engine.finished_idx.get_lock(), mp_engine.cal_word_infl.get_lock():
+                    idx = mp_engine.train_idx.value
+                    mp_engine.train_idx.value = (mp_engine.train_idx.value + 1)%train_dataset_size
+                    if mp_engine.finished_idx[idx] == False:
+                        mp_engine.finished_idx[idx] = True
+                        cal_word_infl = mp_engine.cal_word_infl[idx]
+                        break
 
-            if cal_word_infl < 0:
-                grad_z_vec = None
-                grad_path_name = None
-                if config["influence"]["grads_path"] is not None and len(config["influence"]["grads_path"]) != 0:
-                    grad_path_name = config["influence"]["grads_path"] + f"/train_grad_{real_id:08d}.pt"
-                if grad_path_name is not None and os.path.exists(grad_path_name):
-                    grad_z_vec = torch.load(grad_path_name, map_location=model.device)
-                    if isinstance(grad_z_vec, list):
-                        grad_z_vec = torch.cat([x.reshape(-1) for x in grad_z_vec])
-                else:
-                    grad_z_vec = grad_z(z, t, input_len, model, gpu=rank)
-                    if grad_path_name is not None:
-                        torch.save(grad_z_vec, grad_path_name)
+                with mp_engine.finished_a_test.get_lock():
+                    if mp_engine.finished_a_test.value == True:
+                        idx = train_dataset_size + 1 # break the loop
+                        break
 
-                # print("before dims red:", grad_z_vec.shape)
-                grad_z_vec = grad_z_vec.reshape((-1, 4096))
-                grad_z_vec = svd_model.transform(grad_z_vec.cpu())
-                begin_time = time.time()
-                # grad_z_vec = grad_z_vec.reshape((-1))
-                grad_z_vec = torch.from_numpy(grad_z_vec).reshape((-1)).to(rank)[::2] ###
-                # print("transform test:", time.time() - begin_time)
-                # print("after dims red:", grad_z_vec.shape)
-                # grad_z_vec = torch.cat([x.reshape(-1) for x in grad_z_vec])
-                # print(process_id, "cat and reshape grad_z", time.time() - time_point)
-                # time_point = time.time()
-                for i in range(len(test_dataset)):
-                    # s_test_vec = [x.data.to(rank) for x in s_test_vec_list[i]]
-                    # s_test_vec = torch.cat([x.reshape(-1) for x in s_test_vec])
-                    # s_test_vec = s_test_vec_list[i].to(rank)
-                    # influence = -np.sum(np.dot(grad_z_vec, s_test_vec_list[i])) / train_dataset_size
-                    influence = -torch.sum(torch.dot(grad_z_vec, s_test_vec_list[i])).cpu().numpy() / train_dataset_size
+                time.sleep(0.002)
 
-#                     influence = -sum(
-#                         [
-#                             torch.sum(k * j).data.cpu().numpy()
-#                             # torch.sum(k * j)
-#                             # for k, j in zip(grad_z_vec, s_test_vec_list[i])
-#                             for k, j in zip(grad_z_vec, s_test_vec)
-#                         ]) / train_dataset_size
+            if idx >= train_dataset_size:
+                break
+
+            try:
+                z, t, input_len, real_id = train_loader.dataset[idx]
+                z = train_loader.collate_fn([z])
+                t = train_loader.collate_fn([t])
+                if z.dim() > 2:
+                    z = torch.squeeze(z, 0)
+                if t.dim() > 2:
+                    t = torch.squeeze(t, 0)
+
+                if cal_word_infl < 0:
+                    grad_z_vec = None
+                    grad_path_name = None
+                    if config["influence"]["grads_path"] is not None and len(config["influence"]["grads_path"]) != 0:
+                        grad_path_name = config["influence"]["grads_path"] + f"/train_grad_{real_id:08d}.pt"
+
+                    if grad_path_name is not None and os.path.exists(grad_path_name):
+                        try:
+                            grad_z_vec = torch.load(grad_path_name, map_location=model.device)
+                            if isinstance(grad_z_vec, list):
+                                grad_z_vec = torch.cat([x.reshape(-1) for x in grad_z_vec])
+                        except Exception as e:
+                            grad_z_vec = None
+                            print(e)
+
+                    if grad_z_vec is None:
+                        grad_z_vec = grad_z(z, t, input_len, model, gpu=rank)
+                        if config["influence"]["OPORP"] == True:
+                            grad_z_vec = OPORP(grad_z_vec, config, map_location=f"cuda:{rank}") ##
+                        if grad_path_name is not None:
+                            torch.save(grad_z_vec, grad_path_name)
+
+                    influence = -torch.sum(torch.dot(grad_z_vec, s_test_vec)).cpu().numpy() / train_dataset_size
 
                     if influence != influence: # check if influence is Nan
                         raise Exception('Got unexpected Nan influence!')
@@ -158,17 +188,17 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                     mp_engine.result_q.put((i, idx, real_id, influence), block=True, timeout=None)
 
                     # print(f"idx: {idx}, real_id: {real_id}, influence: {influence}")
-            else:
-                # s_test_vec = [x.data.to(rank) for x in s_test_vec_list[cal_word_infl]]
-                _, words_influence = grad_z(z, t, input_len, model, gpu=rank, return_words_loss=True, s_test_vec=s_test_vec_list[cal_word_infl])
-                # _, words_influence = grad_z(z, t, input_len, model, gpu=rank, return_words_loss=True, s_test_vec=s_test_vec)
-                # print(f"cal_word_infl: {cal_word_infl}, idx: {idx}, real_id: {real_id}, influence: {influence}")
-                mp_engine.result_q.put((cal_word_infl, idx, real_id, words_influence), block=True, timeout=None)
-        except Exception as e:
-            with mp_engine.finished_idx.get_lock():
-                mp_engine.finished_idx[idx] = False
-                print(e)
-            raise e
+                else:
+                    # s_test_vec = [x.data.to(rank) for x in s_test_vec_list[cal_word_infl]]
+                    _, words_influence = grad_z(z, t, input_len, model, gpu=rank, return_words_loss=True, s_test_vec=s_test_vec)
+                    # _, words_influence = grad_z(z, t, input_len, model, gpu=rank, return_words_loss=True, s_test_vec=s_test_vec)
+                    # print(f"cal_word_infl: {cal_word_infl}, idx: {idx}, real_id: {real_id}, influence: {influence}")
+                    mp_engine.result_q.put((cal_word_infl, idx, real_id, words_influence), block=True, timeout=None)
+            except Exception as e:
+                with mp_engine.finished_idx.get_lock():
+                    mp_engine.finished_idx[idx] = False
+                    print(e)
+                raise e
 
 def MP_run_get_result(config, mp_engine):
     train_dataset_size = 0
@@ -207,10 +237,22 @@ def MP_run_get_result(config, mp_engine):
     shuffled_id2real_id = {}
     
     total_size = test_dataset_size * train_dataset_size
+    test_cal_num = {x: 0 for x in range(test_dataset_size)}
     
+    mp_engine.test_begin_barrier.wait()
+
     i = 0
+    test_id = 0
     while True:
         try:
+            if test_cal_num[test_id] >= train_dataset_size:
+                with mp_engine.finished_a_test.get_lock():
+                    mp_engine.finished_a_test.value = 1
+                with mp_engine.cur_processes_num.get_lock():
+                    print(f"cur_processes_num: {mp_engine.cur_processes_num.value}")
+                    mp_engine.test_begin_barrier._parties = mp_engine.cur_processes_num.value
+                mp_engine.test_begin_barrier.wait()
+
             result_item = mp_engine.result_q.get(block=True, timeout=300)
         except Exception as e:
             print("Cal Influence Function Finished!")
@@ -220,6 +262,7 @@ def MP_run_get_result(config, mp_engine):
             save_json(influences, influences_path, overwrite_if_exists=True)
             raise Exception("Get unexpected result from queue.")
         test_id, shuffled_id, real_id, influence = result_item
+        test_cal_num[test_id] += 1
         # print(f"get, i: {i} real_id: {real_id}")
         if influence != influence: # check if influence is Nan
             raise Exception('Got unexpected Nan influence!')
@@ -337,9 +380,8 @@ class MPEngine:
         self.train_idx = Value(c_int, 0)
 
         self.start_barrier = Barrier(world_size + 1)
-        # self.start_barrier = Barrier(world_size + 1, action=self.put_none_to_result)
-        # self.finished_a_test = Barrier(world_size + 1, action=self.action_finished_a_test)
-        self.finished_a_test = Value(c_int, 0)
+        self.test_begin_barrier = Barrier(world_size + 1, action=self.action_set_idx_to_zero)
+        self.finished_a_test = Value(c_int, 1)
         self.cur_processes_num = Value(c_int, 0)
 
         self.train_dataset_size = Value(c_int, 0)
@@ -351,9 +393,14 @@ class MPEngine:
         # > -1, compute word infl for # test data
         self.cal_word_infl = Array(c_int, [-1 for _ in range(MAX_DATASET_SIZE)])
 
-    def action_finished_a_test(self):
+    def action_set_idx_to_zero(self):
         with self.train_idx.get_lock():
             self.train_idx.value = 0
+        with self.finished_a_test.get_lock():
+            self.finished_a_test.value = 0
+        with self.finished_idx.get_lock():
+            for i in range(MAX_DATASET_SIZE):
+                self.finished_idx[i] = False
 
 #     def put_none_to_result(self):
 #         self.result_q.put(None)
