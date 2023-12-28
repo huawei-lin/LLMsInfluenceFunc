@@ -76,7 +76,7 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
     mp_engine.start_barrier.wait()
     model = get_model(config['model'], device_map=f"cuda:{rank}")
     print(f"CUDA {rank}: model loaded!")
-    s_test_vec_list = [x.to(rank) for x in s_test_vec_list]
+    # s_test_vec_list = [x.to(rank) for x in s_test_vec_list]
 
     while True:
         cal_word_infl = -1
@@ -126,7 +126,8 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                     # s_test_vec = [x.data.to(rank) for x in s_test_vec_list[i]]
                     # s_test_vec = torch.cat([x.reshape(-1) for x in s_test_vec])
                     # s_test_vec = s_test_vec_list[i].to(rank)
-                    influence = -torch.sum(torch.dot(grad_z_vec, s_test_vec_list[i])).cpu().numpy() / train_dataset_size
+                    # influence = -torch.sum(torch.dot(grad_z_vec, s_test_vec_list[i])).cpu().numpy() / train_dataset_size
+                    influence = -torch.sum(torch.dot(grad_z_vec, s_test_vec_list[i].to(rank))).cpu().numpy() / train_dataset_size
 
 #                     influence = -sum(
 #                         [
