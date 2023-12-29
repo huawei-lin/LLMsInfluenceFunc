@@ -24,27 +24,6 @@ from torch.autograd import grad
 MAX_CAPACITY = 2048
 MAX_DATASET_SIZE = int(1e8)
 
-params_index = None
-
-def calc_loss(y, t):
-    """Calculates the loss
-
-    Arguments:
-        y: torch tensor, input with size (minibatch, nr_of_classes)
-        t: torch tensor, target expected by loss of size (0 to nr_of_classes-1)
-
-    Returns:
-        loss: scalar, the loss"""
-#     # Shift so that tokens < n predict n
-#     y = y[..., :-1, :].contiguous()
-#     t = t[..., 1:].contiguous()
-
-    bs, _, vocab_size = y.shape
-    y = y.reshape(-1, vocab_size)
-    t = t.reshape(-1)
-
-    loss = torch.nn.functional.cross_entropy(y, t)
-    return loss
 
 def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engine):
     print(f"rank: {rank}, world_size: {world_size}")
@@ -65,9 +44,6 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
     with mp_engine.test_dataset_size.get_lock():
         mp_engine.test_dataset_size.value = len(test_dataset)
 
-    global params_index
-    np.random.seed(int(config["influence"]["seed"]))
-
     s_test_vec_list = []
     test_dataset_size = len(test_dataset)
     for i in range(test_dataset_size):
@@ -82,20 +58,16 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
             y = y.logits
             loss = calc_loss(y, t)
             params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
-            if params_index is None:
-                params_index = sorted(np.random.choice(len(params), int(len(params)*0.03)))
-                np.save(f"./TracIn_random_params_idx.npy", params_index)
-                print(f"{len(params_index)}: {params_index}")
             # params = [params[x] for x in params_index]
             # params = params[-10:]
 
             grads = grad(loss, params)
 
         # s_test_vec = [x.data.cpu() for x in grads]
-            s_test_vec = torch.cat([x.reshape(-1) for x in grads])
-            print(s_test_vec.shape)
-            s_test_vec = s_test_vec.cpu()
-            s_test_vec_list.append(s_test_vec)
+        s_test_vec = torch.cat([x.reshape(-1) for x in grads])
+        print(s_test_vec.shape)
+        s_test_vec = s_test_vec.cpu()
+        s_test_vec_list.append(s_test_vec)
         display_progress("Calc. s test vector: ", i, test_dataset_size, cur_time=time.time())
 
 #         del x, t, y
@@ -147,7 +119,6 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                             t = torch.squeeze(t, 0)
 
                         grad_z_vec = grad_z(z, t, input_len, model, gpu=rank)
-                        print("grad_z_vec", grad_z_vec.shape)
 #                         if grad_path_name is not None:
 #                             torch.save(grad_z_vec, grad_path_name)
 
