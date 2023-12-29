@@ -18,6 +18,7 @@ from copy import copy
 import logging
 import datetime
 import os
+import gc
 from torch.autograd import grad
 
 MAX_CAPACITY = 2048
@@ -76,7 +77,6 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
             y = y.logits
             loss = calc_loss(y, t)
             params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
-            params = params[-20:]
 
             grads = grad(loss, params)
 
@@ -86,8 +86,11 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
         s_test_vec_list.append(s_test_vec)
         display_progress("Calc. s test vector: ", i, test_dataset_size, cur_time=time.time())
 
-        model.zero_grad(set_to_none=True)
+        del x, t, y
+        gc.collect()
         torch.cuda.empty_cache()
+        # model.zero_grad(set_to_none=True)
+        # torch.cuda.empty_cache()
 
     idx = 0
     mp_engine.start_barrier.wait()
@@ -115,7 +118,7 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                 # grad_z_vec = [x.data.cpu() for x in grad_z_vec]
                 grad_z_vec = None
                 grad_path_name = None
-                if config["influence"]["grads_path"] is not None and len(config["influence"]["grads_path"]) != 0:
+                if "grads_path" in config["influence"].keys() and config["influence"]["grads_path"] is not None and len(config["influence"]["grads_path"]) != 0:
                     grad_path_name = config["influence"]["grads_path"] + f"/train_grad_{real_id:08d}.pt"
                 if grad_path_name is not None and os.path.exists(grad_path_name):
                     grad_z_vec = torch.load(grad_path_name, map_location=model.device)
@@ -137,9 +140,9 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                         y = y.logits
                         loss = calc_loss(y, t)
                         params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
-                        params = params[-20:]
 
                         grad_z_vec = grad(loss, params)
+                        grad_z_vec = torch.cat([x.reshape(-1) for x in grad_z_vec])
 
                     model.zero_grad(set_to_none=True)
                     torch.cuda.empty_cache()
@@ -370,7 +373,7 @@ def calc_infl_mp(config):
     if "n_threads" in config['influence'].keys():
         threads_per_gpu = int(config['influence']['n_threads'])
 
-    if config['influence']['grads_path'] is not None and len(config['influence']['grads_path']) != 0:
+    if 'grads_path' in config["influence"].keys() and config['influence']['grads_path'] is not None and len(config['influence']['grads_path']) != 0:
         os.makedirs(config['influence']['grads_path'], exist_ok=True)
 
     mp_engine = MPEngine(gpu_num * threads_per_gpu)
