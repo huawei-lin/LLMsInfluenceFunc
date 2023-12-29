@@ -5,6 +5,7 @@ from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from ctypes import c_bool, c_int
 import torch
+from LLMIF.OPORP import OPORP
 from LLMIF.calc_inner import grad_z
 from LLMIF.data_loader import get_model_tokenizer, TrainDataset, TestDataset, get_tokenizer, get_model
 from LLMIF.data_loader import get_dataset_size, read_data
@@ -23,54 +24,6 @@ import gc
 
 MAX_CAPACITY = 2048
 MAX_DATASET_SIZE = int(1e8)
-
-D = None
-# K = 32768
-# K = 1048576
-# K = 4194304
-# K = 131072
-K = None
-M = None
-
-random_mat = None
-perm_mat = None
-
-def OPORP(vec, config, map_location=None):
-    global random_mat, perm_mat, K, M, D
-    if K is None:
-        K = int(config["influence"]["OPORP_K"])
-
-    if M is None:
-        M = int(config["influence"]["OPORP_M"])
-
-    if random_mat is None:
-        D = len(vec)
-        if os.path.exists(f"./random_mat_D{D}_M{M}.pt"): random_mat = torch.load(f"./random_mat_D{D}_M{M}.pt", map_location=map_location)
-            # random_mat = random_mat.to(vec.device)
-        else:
-            random_mat = torch.randint(0, 2, (M*D,), dtype=torch.int8, device=vec.device)
-            random_mat[random_mat < 1e-8] = -1
-            torch.save(random_mat, f"./random_mat_D{D}_M{M}.pt")
-
-    if perm_mat is None:
-        D = len(vec)
-        if os.path.exists(f"./perm_mat_D{D}_M{M}.npy"):
-            perm_mat = np.load(f"./perm_mat_D{D}_M{M}.npy")
-        else:
-            perm_mat = np.zeros((M*D))
-            for i in range(M):
-                perm_mat[i*D:(i + 1)*D] = np.random.permutation(D) + (i * D)
-            np.save(f"./perm_mat_D{D}_M{M}.npy", perm_mat)
-
-    vec = vec.repeat(M)
-    vec = vec[perm_mat]
-
-    vec = vec*random_mat
-
-    step = D//K
-    vec = torch.sum(vec.reshape((-1, step)), axis=1)
-
-    return vec
 
 
 def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engine):
