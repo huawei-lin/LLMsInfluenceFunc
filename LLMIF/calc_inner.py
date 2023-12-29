@@ -43,6 +43,7 @@ def s_test(z_test, t_test, input_len, model, z_loader, gpu=-1, damp=0.01, scale=
     min_nan_depth = recursion_depth
     has_nan = False
     for i in range(recursion_depth):
+        print(i)
         # take just one random sample from training dataset
         # easiest way to just use the DataLoader once, break at the end of loop
         #########################
@@ -64,7 +65,8 @@ def s_test(z_test, t_test, input_len, model, z_loader, gpu=-1, damp=0.01, scale=
             loss = calc_loss(y, t)
             loss = loss.mean(dim=1)
             params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
-            params = params[-10:]
+            # params = params[-10:]
+            params = params[:2]
             hv = hvp(loss, params, h_estimate)
 
         model.zero_grad(set_to_none=True)
