@@ -32,6 +32,8 @@ def s_test(z_test, t_test, input_len, model, z_loader, gpu=-1, damp=0.01, scale=
 
     Returns:
         h_estimate: list of torch tensors, s_test"""
+    model.eval()
+
     v = grad_z(z_test, t_test, input_len, model, gpu)
     h_estimate = copy(v)
 

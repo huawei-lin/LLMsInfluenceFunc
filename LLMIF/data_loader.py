@@ -73,6 +73,7 @@ def get_model(config, **kwargs):
 
 #     if torch.__version__ >= "2":
 #         model = torch.compile(model)
+    model.eval()
     return model
 
 
