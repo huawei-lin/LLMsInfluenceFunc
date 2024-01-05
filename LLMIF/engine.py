@@ -5,6 +5,7 @@ from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from ctypes import c_bool, c_int
 import torch
+from LLMIF.OPORP import OPORP
 from LLMIF.calc_inner import grad_z
 from LLMIF.data_loader import get_model_tokenizer, TrainDataset, TestDataset
 from LLMIF.data_loader import get_dataset_size, read_data
@@ -87,8 +88,12 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
 
         # s_test_vec = [x.data.cpu() for x in grads]
         s_test_vec = torch.cat([x.reshape(-1) for x in grads])
-        print(s_test_vec.shape)
         s_test_vec = s_test_vec.cpu()
+        if config["influence"]["OPORP"] == True:
+            # s_test_vec = OPORP(s_test_vec, config, map_location=f"cuda:{rank}")
+            s_test_vec = OPORP(s_test_vec, config, map_location=f"cpu")
+        print(s_test_vec.shape)
+        # s_test_vec_list.append(s_test_vec)
         s_test_vec_list.append(s_test_vec)
         display_progress("Calc. s test vector: ", i, test_dataset_size, cur_time=time.time())
 
@@ -140,11 +145,15 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                         grad_path_name = config["influence"]["grads_path"] + f"/train_grad_{real_id:08d}.pt"
                         for path in grad_paths:
                             grad_path_names.append(path + f"/train_grad_{real_id:08d}.pt")
-#                     if grad_path_name is not None and os.path.exists(grad_path_name):
-#                         pass
-#                         grad_z_vec = torch.load(grad_path_name, map_location=model.device)
-#                         if isinstance(grad_z_vec, list):
-#                             grad_z_vec = torch.cat([x.reshape(-1) for x in grad_z_vec])
+                    if grad_path_name is not None and os.path.exists(grad_path_name):
+                        try:
+                            grad_z_vec = torch.load(grad_path_name, map_location=model.device)
+                            if isinstance(grad_z_vec, list):
+                                grad_z_vec = torch.cat([x.reshape(-1) for x in grad_z_vec])
+                        except Exception as e:
+                            grad_z_vec = None
+                            print(e)
+
                     if grad_z_vec is None:
                         z = train_loader.collate_fn([z])
                         t = train_loader.collate_fn([t])
@@ -169,13 +178,13 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                         torch.cuda.empty_cache()
 
                     for i in range(len(test_dataset)):
-                        # s_test_vec = s_test_vec_list[i].to(rank)
-                        s_test_vec = s_test_vec_list[i]
+                        s_test_vec = s_test_vec_list[i].to(rank)
+                        # s_test_vec = s_test_vec_list[i]
                         # s_test_vec = [x.data.to(rank) for x in s_test_vec_list[i]]
                         # s_test_vec = torch.cat([x.reshape(-1) for x in s_test_vec])
 
-                        # influence = torch.sum(torch.dot(grad_z_vec, s_test_vec)).cpu().numpy()
-                        influence = torch.sum(torch.dot(grad_z_vec, s_test_vec)).numpy()
+                        influence = torch.sum(torch.dot(grad_z_vec, s_test_vec)).cpu().numpy()
+                        # influence = torch.sum(torch.dot(grad_z_vec, s_test_vec)).numpy()
 
 #                         del s_test_vec
 #                         gc.collect()
@@ -194,9 +203,9 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                         # (test id, shuffle id, original id, influence score)
                         mp_engine.result_q.put((i, idx, real_id, influence), block=True, timeout=None)
 
-                del grad_z_vec
-                gc.collect()
-                torch.cuda.empty_cache()
+                # del grad_z_vec
+                # gc.collect()
+                # torch.cuda.empty_cache()
 
                     # print(f"idx: {idx}, real_id: {real_id}, influence: {influence}")
             else:
