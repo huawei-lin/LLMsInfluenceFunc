@@ -103,6 +103,7 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
     for i in range(len(Ks)):
         Ks[i] = 2**Ks[i]
     Ks[-1] = 1638400
+    Ks = [8388608, 41943040]
     for cur_K in Ks:
         grad_paths.append(config["influence"]["grads_path"] + f"/K{cur_K}")
     for grad_path in grad_paths:
