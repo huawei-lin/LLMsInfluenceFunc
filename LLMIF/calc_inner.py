@@ -144,7 +144,12 @@ def grad_z(z, t, input_len, model, gpu=-1, return_words_loss=False, s_test_vec=N
         # loss_mean = loss.mean(dim=1)
         loss_mean = loss.mean()
         # Compute sum of gradients from model parameters to loss
-        params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2]
+
+#         loss_mean.backward()
+#         grad_loss = torch.cat([ p.grad.data.cpu().reshape(-1) for p in model.parameters() if p.requires_grad and p.dim() >= 2])
+
+       #  params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2]
+        params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 and p.shape[0] == p.shape[1] ]
         # params = params[-10:]
         # grad_loss = [x.cpu() for x in grad(loss[0], params)]
         words_influence = []
@@ -165,6 +170,7 @@ def grad_z(z, t, input_len, model, gpu=-1, return_words_loss=False, s_test_vec=N
                 influence = -torch.sum(torch.dot(grads, s_test_vec)).cpu().numpy()
                 words_influence.append(float(influence))
 
+        # grad_loss = torch.cat([x.reshape(-1) for x in list(grad(loss_mean, params))])
         grad_loss = torch.cat([x.reshape(-1) for x in list(grad(loss_mean, params))])
 
         # model.zero_grad(set_to_none=True)

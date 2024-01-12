@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 from ctypes import c_bool, c_int
 import torch
 from LLMIF.calc_inner import grad_z
-from LLMIF.data_loader import get_model_tokenizer, TrainDataset, TestDataset
+from LLMIF.data_loader import get_model_tokenizer, TrainDataset, TestDataset, get_tokenizer, get_model
 from LLMIF.data_loader import get_dataset_size, read_data
 from LLMIF.influence_function import calc_s_test_single
 from LLMIF.utils import save_json, display_progress, load_json
@@ -47,10 +47,10 @@ def calc_loss(y, t):
     return loss
 
 
-def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engine):
+def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engine, restart = False):
     print(f"rank: {rank}, world_size: {world_size}")
-    model, tokenizer = get_model_tokenizer(config['model'], device_map=f"cuda:{rank}")
-    model = model.to(rank)
+    # model, tokenizer = get_model_tokenizer(config['model'], device_map=f"cuda:{rank}")
+    tokenizer = get_tokenizer(config['model'], device_map=f"cuda:{rank}")
     print(f"CUDA {rank}: Model loaded!")
 
     # train_dataset = TrainDataset(config['data']['train_data_path'], tokenizer, shuffle=False, load_idx_list=load_idx_list)
@@ -66,51 +66,60 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
     with mp_engine.test_dataset_size.get_lock():
         mp_engine.test_dataset_size.value = len(test_dataset)
 
-    s_test_vec_list = []
-    test_dataset_size = len(test_dataset)
-    for i in range(test_dataset_size):
-        z_test, t_test, input_len = test_dataset[i]
-        x = default_collate([z_test])
-        t = default_collate([t_test])
-        if rank >= 0:
-            x, t = x.cuda(rank), t.cuda(rank)
+    def get_s_test_vec_list():
+        model = get_model(config['model'], device_map=f"cuda:{rank}")
+        model = model.to(rank)
+        s_test_vec_list = []
+        test_dataset_size = len(test_dataset)
+        for i in range(test_dataset_size):
+            z_test, t_test, input_len = test_dataset[i]
+            x = default_collate([z_test])
+            t = default_collate([t_test])
+            if rank >= 0:
+                x, t = x.cuda(rank), t.cuda(rank)
 
-        with torch.cuda.amp.autocast(dtype=torch.float16):
-            y = model(x)
-            y = y.logits
-            loss = calc_loss(y, t)
-            params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
-            # params = [params[x] for x in params_index]
-            # params = params[-10:]
+            with torch.cuda.amp.autocast(dtype=torch.float16):
+                y = model(x)
+                y = y.logits
+                loss = calc_loss(y, t)
+                params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 and p.shape[0] == p.shape[1] ]
+                # params = [params[x] for x in params_index]
+                # params = params[-10:]
 
-            grads = grad(loss, params)
+                grads = grad(loss, params)
 
-        # s_test_vec = [x.data.cpu() for x in grads]
-        s_test_vec = torch.cat([x.reshape(-1) for x in grads])
-        print(s_test_vec.shape)
-        s_test_vec = s_test_vec.cpu()
-        s_test_vec_list.append(s_test_vec)
-        display_progress("Calc. s test vector: ", i, test_dataset_size, cur_time=time.time())
+            # s_test_vec = [x.data.cpu() for x in grads]
+            s_test_vec = torch.cat([x.reshape(-1) for x in grads])
+            print(s_test_vec.shape)
+            s_test_vec_list.append(s_test_vec.cpu())
+            display_progress("Calc. s test vector: ", i, test_dataset_size, cur_time=time.time())
 
-#         del x, t, y
-#         gc.collect()
-        # torch.cuda.empty_cache()
-        model.zero_grad(set_to_none=True)
-        torch.cuda.empty_cache()
+#             del s_test_vec, y, x, t, grads
+#             torch.cuda.empty_cache()
+#             gc.collect()
+#             model.zero_grad(set_to_none=True)
+#             torch.cuda.empty_cache()
+        return s_test_vec_list
+
+    s_test_vec_list = get_s_test_vec_list()
+
+    model = get_model(config['model'], device_map=f"cuda:{rank}")
+    model = model.to(rank)
 
     Ks = [16, 20, 24]
     grad_paths = []
     for i in range(len(Ks)):
         Ks[i] = 2**Ks[i]
-    Ks[-1] = 1638400
-    Ks = [8388608, 41943040]
+    # Ks = [4096, 155648, 6580232, 13160464, 26320928]
     for cur_K in Ks:
         grad_paths.append(config["influence"]["grads_path"] + f"/K{cur_K}")
     for grad_path in grad_paths:
         os.makedirs(grad_path, exist_ok=True)
 
+    if restart == False:
+        mp_engine.start_barrier.wait()
+
     idx = 0
-    mp_engine.start_barrier.wait()
     while True:
         cal_word_infl = -1
 
@@ -136,68 +145,75 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                 grad_z_vec = None
                 grad_path_name = None
                 grad_path_names = []
-                with torch.cuda.amp.autocast(dtype=torch.float16):
-                    if "grads_path" in config["influence"].keys() and config["influence"]["grads_path"] is not None and len(config["influence"]["grads_path"]) != 0:
-                        grad_path_name = config["influence"]["grads_path"] + f"/train_grad_{real_id:08d}.pt"
-                        for path in grad_paths:
-                            grad_path_names.append(path + f"/train_grad_{real_id:08d}.pt")
-#                     if grad_path_name is not None and os.path.exists(grad_path_name):
-#                         pass
-#                         grad_z_vec = torch.load(grad_path_name, map_location=model.device)
-#                         if isinstance(grad_z_vec, list):
-#                             grad_z_vec = torch.cat([x.reshape(-1) for x in grad_z_vec])
-                    if grad_z_vec is None:
-                        z = train_loader.collate_fn([z])
-                        t = train_loader.collate_fn([t])
-                        if z.dim() > 2:
-                            z = torch.squeeze(z, 0)
-                        if t.dim() > 2:
-                            t = torch.squeeze(t, 0)
+                if "grads_path" in config["influence"].keys() and config["influence"]["grads_path"] is not None and len(config["influence"]["grads_path"]) != 0:
+                    grad_path_name = config["influence"]["grads_path"] + f"/train_grad_{real_id:08d}.pt"
+                    for path in grad_paths:
+                        grad_path_names.append(path + f"/train_grad_{real_id:08d}.pt")
+                if os.path.exists(grad_path_names[-1]):
+                    mp_engine.result_q.put((0, idx, real_id, 0), block=True, timeout=None)
+                    continue
 
-                        grad_z_vec = grad_z(z, t, input_len, model, gpu=rank)
-                        grad_z_vec = grad_z_vec.cpu()
-                        # vec_list = OPORP_multi_k(grad_z_vec, config, Ks, map_location=f"cuda:{rank}")
-                        vec_list = OPORP_multi_k(grad_z_vec, config, Ks, map_location=f"cuda:{rank}")
-                        for grad_path_name, vec in zip(grad_path_names, vec_list):
-                            torch.save(vec, grad_path_name)
-#                         if grad_path_name is not None:
-#                             torch.save(grad_z_vec, grad_path_name)
+#                 if grad_path_name is not None and os.path.exists(grad_path_name):
+#                     pass
+#                     grad_z_vec = torch.load(grad_path_name, map_location=model.device)
+#                     if isinstance(grad_z_vec, list):
+#                         grad_z_vec = torch.cat([x.reshape(-1) for x in grad_z_vec])
+                if grad_z_vec is None:
+                    z = train_loader.collate_fn([z])
+                    t = train_loader.collate_fn([t])
+                    if z.dim() > 2:
+                        z = torch.squeeze(z, 0)
+                    if t.dim() > 2:
+                        t = torch.squeeze(t, 0)
+
+#                     time_begin = time.time()
+                    grad_z_vec = grad_z(z, t, input_len, model, gpu=rank)
+#                     print(f"grad_z: {time.time() - time_begin}")
+#                     time_begin = time.time()
+
+                    # grad_z_vec = grad_z_vec.cpu()
+                    # vec_list = OPORP_multi_k(grad_z_vec, config, Ks, map_location=f"cuda:{rank}")
+                    vec_list = OPORP_multi_k(grad_z_vec, config, Ks, map_location=f"cuda:{rank}")
+#                     print(f"multi-k: {time.time() - time_begin}")
+#                     time_begin = time.time()
+                    for grad_path_name, vec in zip(grad_path_names, vec_list):
+                        torch.save(vec, grad_path_name)
+#                     if grad_path_name is not None:
+#                         torch.save(grad_z_vec, grad_path_name)
 
 
-#                         del z, t, y
-#                         gc.collect()
-                        model.zero_grad(set_to_none=True)
-                        torch.cuda.empty_cache()
+#                     del z, t, y
+#                     gc.collect()
+                    # model.zero_grad(set_to_none=True)
+                    # torch.cuda.empty_cache()
 
-                    for i in range(len(test_dataset)):
-                        # s_test_vec = s_test_vec_list[i].to(rank)
-                        s_test_vec = s_test_vec_list[i]
-                        # s_test_vec = [x.data.to(rank) for x in s_test_vec_list[i]]
-                        # s_test_vec = torch.cat([x.reshape(-1) for x in s_test_vec])
+                # grad_z_vec = grad_z_vec.to(rank)
+                D = len(grad_z_vec)
 
-                        # influence = torch.sum(torch.dot(grad_z_vec, s_test_vec)).cpu().numpy()
-                        influence = torch.sum(torch.dot(grad_z_vec, s_test_vec)).numpy()
+                for i in range(len(test_dataset)):
+                    s_test_vec = s_test_vec_list[i].to(rank)
+                    # s_test_vec = s_test_vec_list[i]
+                    # s_test_vec = [x.data.to(rank) for x in s_test_vec_list[i]]
+                    # s_test_vec = torch.cat([x.reshape(-1) for x in s_test_vec])
 
-#                         del s_test_vec
-#                         gc.collect()
-#                         torch.cuda.empty_cache()
+                    # influence = torch.sum(torch.dot(grad_z_vec, s_test_vec)).cpu().numpy()
+                    # influence = torch.sum(torch.dot(grad_z_vec, s_test_vec)).numpy()
+                    influence = (torch.dot(grad_z_vec[:D//2], s_test_vec[:D//2]) \
+                            + torch.dot(grad_z_vec[D//2:], s_test_vec[D//2:])).cpu().numpy()
+                    # influence = torch.dot(grad_z_vec, s_test_vec).numpy()
 
-#                     influence = -sum(
-#                         [
-#                             torch.sum(k * j).data.cpu().numpy()
-#                             # torch.sum(k * j)
-#                             # for k, j in zip(grad_z_vec, s_test_vec_list[i])
-#                             for k, j in zip(grad_z_vec, s_test_vec)
-#                         ]) / train_dataset_size
 
-                        if influence != influence: # check if influence is Nan
-                            raise Exception('Got unexpected Nan influence!')
-                        # (test id, shuffle id, original id, influence score)
-                        mp_engine.result_q.put((i, idx, real_id, influence), block=True, timeout=None)
+                    if influence != influence: # check if influence is Nan
+                        raise Exception('Got unexpected Nan influence!')
+                    # (test id, shuffle id, original id, influence score)
+                    mp_engine.result_q.put((i, idx, real_id, influence), block=True, timeout=None)
 
-                del grad_z_vec
-                gc.collect()
-                torch.cuda.empty_cache()
+#                 print(f"cal_inf: {time.time() - time_begin}")
+#                 time_begin = time.time()
+
+#                 del grad_z_vec
+#                 gc.collect()
+#                 torch.cuda.empty_cache()
 
                     # print(f"idx: {idx}, real_id: {real_id}, influence: {influence}")
             else:
@@ -254,6 +270,7 @@ def MP_run_get_result(config, mp_engine):
     while True:
         try:
             result_item = mp_engine.result_q.get(block=True, timeout=300)
+            # result_item = mp_engine.result_q.get(block=True)
         except Exception as e:
             print("Cal Influence Function Finished!")
             break
@@ -265,7 +282,7 @@ def MP_run_get_result(config, mp_engine):
         # print(f"get, i: {i} real_id: {real_id}")
         if influence != influence: # check if influence is Nan
             raise Exception('Got unexpected Nan influence!')
-    
+
         infl_list[test_id][shuffled_id] = influence
         real_id2shuffled_id[real_id] = shuffled_id
         shuffled_id2real_id[shuffled_id] = real_id
@@ -407,12 +424,15 @@ def calc_infl_mp(config):
     if 'grads_path' in config["influence"].keys() and config['influence']['grads_path'] is not None and len(config['influence']['grads_path']) != 0:
         os.makedirs(config['influence']['grads_path'], exist_ok=True)
 
-    mp_engine = MPEngine(gpu_num * threads_per_gpu)
+    num_processing = gpu_num * threads_per_gpu
+    mp_engine = MPEngine(num_processing)
 
     mp_handler = []
+    mp_args = []
     for i in range(gpu_num):
         for j in range(threads_per_gpu):
             mp_handler.append(mp.Process(target=MP_run_calc_infulence_function, args=(i, gpu_num, i*threads_per_gpu + j, config, mp_engine,)))
+            mp_args.append(mp_handler[-1]._args)
     mp_handler.append(mp.Process(target=MP_run_get_result, args=(config, mp_engine)))
 
     for x in mp_handler:
@@ -420,6 +440,14 @@ def calc_infl_mp(config):
 
     while mp_handler[-1].is_alive():
         cur_processes_num = len([1 for x in mp_handler if x.is_alive()])
+        if cur_processes_num < num_processing + 1:
+            print(f"ready to restart processing, {cur_processes_num}/{num_processing}")
+            for i, x in enumerate(mp_handler):
+                if x.is_alive() != True:
+                    print(f"start {mp_args[i]}")
+                    mp_handler[i] = mp.Process(target=MP_run_calc_infulence_function, args=mp_args[i] + (True,))
+                    mp_handler[i].start()
+            continue
         with mp_engine.cur_processes_num.get_lock():
             mp_engine.cur_processes_num.value = cur_processes_num
         time.sleep(1)
