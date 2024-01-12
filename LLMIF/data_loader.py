@@ -51,7 +51,7 @@ def get_model(config, **kwargs):
     )
     if "load_in_4bit" in config.keys() and config["load_in_4bit"] == True:
         model = prepare_model_for_kbit_training(model)
-    if "lora_path" in config.keys():
+    if "lora_path" in config.keys() and config["lora_path"] is not None:
         logging.warning(f"Loading lora adapter...")
         model.enable_input_require_grads()
         model = PeftModel.from_pretrained(

@@ -80,7 +80,8 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
             y = model(x)
             y = y.logits
             loss = calc_loss(y, t)
-            params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
+            # params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
+            params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 and p.shape[0] == p.shape[1] ]
             # params = [params[x] for x in params_index]
             # params = params[-10:]
 

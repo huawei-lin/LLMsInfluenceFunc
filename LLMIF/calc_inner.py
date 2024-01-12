@@ -144,7 +144,8 @@ def grad_z(z, t, input_len, model, gpu=-1, return_words_loss=False, s_test_vec=N
         # loss_mean = loss.mean(dim=1)
         loss_mean = loss.mean()
         # Compute sum of gradients from model parameters to loss
-        params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2]
+        # params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2]
+        params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 and p.shape[0] == p.shape[1] ]
         # params = params[-10:]
         # grad_loss = [x.cpu() for x in grad(loss[0], params)]
         words_influence = []
