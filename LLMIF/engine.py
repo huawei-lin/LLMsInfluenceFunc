@@ -21,6 +21,7 @@ import datetime
 import os
 import gc
 from torch.autograd import grad
+from sys import getsizeof
 
 MAX_CAPACITY = 2048
 MAX_DATASET_SIZE = int(1e8)
@@ -68,7 +69,7 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
 
     def get_s_test_vec_list():
         model = get_model(config['model'], device_map=f"cuda:{rank}")
-        model = model.to(rank)
+        # model = model.to(rank)
         s_test_vec_list = []
         test_dataset_size = len(test_dataset)
         for i in range(test_dataset_size):
@@ -82,7 +83,9 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                 y = model(x)
                 y = y.logits
                 loss = calc_loss(y, t)
-                params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 and p.shape[0] == p.shape[1] ]
+                print(loss)
+                # params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 and p.shape[0] == p.shape[1] ]
+                params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
                 # params = [params[x] for x in params_index]
                 # params = params[-10:]
 
@@ -101,16 +104,17 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
 #             torch.cuda.empty_cache()
         return s_test_vec_list
 
-    s_test_vec_list = get_s_test_vec_list()
+    # s_test_vec_list = get_s_test_vec_list()
 
     model = get_model(config['model'], device_map=f"cuda:{rank}")
-    model = model.to(rank)
+    model.half()
+    # model = model.to(rank)
 
     Ks = [16, 20, 24]
     grad_paths = []
     for i in range(len(Ks)):
         Ks[i] = 2**Ks[i]
-    # Ks = [4096, 155648, 6580232, 13160464, 26320928]
+    Ks = [155648, 6580232, 13160464, 26320928]
     for cur_K in Ks:
         grad_paths.append(config["influence"]["grads_path"] + f"/K{cur_K}")
     for grad_path in grad_paths:
@@ -168,10 +172,13 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
 
 #                     time_begin = time.time()
                     grad_z_vec = grad_z(z, t, input_len, model, gpu=rank)
+                    # grad_z_vec = grad_z_vec.to(dtype=torch.float16)
 #                     print(f"grad_z: {time.time() - time_begin}")
 #                     time_begin = time.time()
 
-                    # grad_z_vec = grad_z_vec.cpu()
+                    grad_z_vec = grad_z_vec.cpu()
+                    print(f"size grad_z_vec {grad_z_vec.element_size() * grad_z_vec.nelement()}")
+                    # grad_z_vec = grad_z_vec.to(rank)
                     # vec_list = OPORP_multi_k(grad_z_vec, config, Ks, map_location=f"cuda:{rank}")
                     vec_list = OPORP_multi_k(grad_z_vec, config, Ks, map_location=f"cuda:{rank}")
 #                     print(f"multi-k: {time.time() - time_begin}")
@@ -191,16 +198,17 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                 D = len(grad_z_vec)
 
                 for i in range(len(test_dataset)):
-                    s_test_vec = s_test_vec_list[i].to(rank)
-                    # s_test_vec = s_test_vec_list[i]
-                    # s_test_vec = [x.data.to(rank) for x in s_test_vec_list[i]]
-                    # s_test_vec = torch.cat([x.reshape(-1) for x in s_test_vec])
-
-                    # influence = torch.sum(torch.dot(grad_z_vec, s_test_vec)).cpu().numpy()
-                    # influence = torch.sum(torch.dot(grad_z_vec, s_test_vec)).numpy()
-                    influence = (torch.dot(grad_z_vec[:D//2], s_test_vec[:D//2]) \
-                            + torch.dot(grad_z_vec[D//2:], s_test_vec[D//2:])).cpu().numpy()
-                    # influence = torch.dot(grad_z_vec, s_test_vec).numpy()
+#                     s_test_vec = s_test_vec_list[i].to(rank)
+#                     # s_test_vec = s_test_vec_list[i]
+#                     # s_test_vec = [x.data.to(rank) for x in s_test_vec_list[i]]
+#                     # s_test_vec = torch.cat([x.reshape(-1) for x in s_test_vec])
+# 
+#                     # influence = torch.sum(torch.dot(grad_z_vec, s_test_vec)).cpu().numpy()
+#                     # influence = torch.sum(torch.dot(grad_z_vec, s_test_vec)).numpy()
+#                     influence = (torch.dot(grad_z_vec[:D//2], s_test_vec[:D//2]) \
+#                             + torch.dot(grad_z_vec[D//2:], s_test_vec[D//2:])).cpu().numpy()
+#                     # influence = torch.dot(grad_z_vec, s_test_vec).numpy()
+                    influence = 0
 
 
                     if influence != influence: # check if influence is Nan
