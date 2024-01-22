@@ -76,16 +76,14 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
         if rank >= 0:
             x, t = x.cuda(rank), t.cuda(rank)
 
-        with torch.cuda.amp.autocast(dtype=torch.float16):
-            y = model(x)
-            y = y.logits
-            loss = calc_loss(y, t)
-            # params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
-            params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 and p.shape[0] == p.shape[1] ]
-            # params = [params[x] for x in params_index]
-            # params = params[-10:]
+        y = model(x)
+        y = y.logits
+        loss = calc_loss(y, t)
+        params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
+        # params = [params[x] for x in params_index]
+        # params = params[-10:]
 
-            grads = grad(loss, params)
+        grads = grad(loss, params)
 
         # s_test_vec = [x.data.cpu() for x in grads]
         s_test_vec = torch.cat([x.reshape(-1) for x in grads])
