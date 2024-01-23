@@ -137,9 +137,12 @@ def grad_z(z, t, input_len, model, gpu=-1, return_words_loss=False, s_test_vec=N
     # Only Batch size = 1
     if gpu >= 0:
         z, t = z.cuda(gpu), t.cuda(gpu)
+    print(f"z: {z}")
+    print(f"t: {t}")
     # with torch.cuda.amp.autocast(dtype=torch.float16):
     y = model(z)
     y = y.logits
+    print(f"y: {y}")
     # loss = calc_loss(y, t)[0] # batch_size = 1
     loss_mean = calc_loss(y, t) # batch_size = 1
     params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
