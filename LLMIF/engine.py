@@ -51,6 +51,7 @@ def calc_loss(y, t):
 def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engine):
     print(f"rank: {rank}, world_size: {world_size}")
     model, tokenizer = get_model_tokenizer(config['model'], device_map=f"cuda:{rank}")
+    model.half()
     model = model.to(rank)
     print(f"CUDA {rank}: Model loaded!")
 
@@ -88,6 +89,7 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
         # s_test_vec = [x.data.cpu() for x in grads]
         s_test_vec = torch.cat([x.reshape(-1) for x in grads])
         s_test_vec = s_test_vec.cpu()
+        s_test_vec_ori = copy(s_test_vec)
         if config["influence"]["OPORP"] == True:
             # s_test_vec = OPORP(s_test_vec, config, map_location=f"cuda:{rank}")
             s_test_vec = OPORP(s_test_vec, config, map_location=f"cpu")
@@ -153,7 +155,8 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                             grad_z_vec = None
                             print(e)
 
-                    if grad_z_vec is None:
+                    if True:
+                    # if grad_z_vec is None:
                         z = train_loader.collate_fn([z])
                         t = train_loader.collate_fn([t])
                         if z.dim() > 2:
@@ -161,12 +164,15 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                         if t.dim() > 2:
                             t = torch.squeeze(t, 0)
 
-                        grad_z_vec = grad_z(z, t, input_len, model, gpu=rank)
-                        grad_z_vec = grad_z_vec.cpu()
+                        grad_z_vec_ori = grad_z(z, t, input_len, model, gpu=rank)
+                        grad_z_vec_ori = grad_z_vec_ori.cpu()
+
+                        # grad_z_vec = grad_z(z, t, input_len, model, gpu=rank)
+                        # grad_z_vec = grad_z_vec.cpu()
                         # vec_list = OPORP_multi_k(grad_z_vec, config, Ks, map_location=f"cuda:{rank}")
-                        vec_list = OPORP_multi_k(grad_z_vec, config, Ks, map_location=f"cuda:{rank}")
-                        for grad_path_name, vec in zip(grad_path_names, vec_list):
-                            torch.save(vec, grad_path_name)
+                        # vec_list = OPORP_multi_k(grad_z_vec, config, Ks, map_location=f"cuda:{rank}")
+                        # for grad_path_name, vec in zip(grad_path_names, vec_list):
+                        #     torch.save(vec, grad_path_name)
 #                         if grad_path_name is not None:
 #                             torch.save(grad_z_vec, grad_path_name)
 
@@ -176,6 +182,11 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                         model.zero_grad(set_to_none=True)
                         torch.cuda.empty_cache()
 
+                    influence = None
+                    influence_ori = None
+                    D = len(grad_z_vec_ori)
+                    print(f"D: {D}")
+
                     for i in range(len(test_dataset)):
                         s_test_vec = s_test_vec_list[i].to(rank)
                         # s_test_vec = s_test_vec_list[i]
@@ -183,6 +194,26 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                         # s_test_vec = torch.cat([x.reshape(-1) for x in s_test_vec])
 
                         influence = torch.sum(torch.dot(grad_z_vec, s_test_vec)).cpu().numpy()
+
+                    for i in range(len(test_dataset)):
+                        grad_z_vec_t = grad_z_vec_ori.to(rank)
+                        s_test_vec_t = s_test_vec_ori.to(rank)
+                        # influence_ori = torch.sum(torch.dot(grad_z_vec_ori.to(rank), s_test_vec_ori.to(rank))).cpu().numpy()
+                        begin = 0
+                        end = 0
+                        step = 2147483647
+                        while end < D:
+                            print(f"({begin}, {end})")
+                            end = min(begin + step, D)
+                            if influence_ori is None:
+                                influence_ori = torch.dot(grad_z_vec_t[begin:end], s_test_vec_t[begin:end])
+                            else:
+                                influence_ori = influence_ori + torch.dot(grad_z_vec_t[begin:end], s_test_vec_t[begin:end])
+                            begin = end
+
+                        influence_ori = influence_ori.cpu().numpy()
+
+                        print(f"influence_ori: {influence_ori}, influence: {influence}")
                         # influence = torch.sum(torch.dot(grad_z_vec, s_test_vec)).numpy()
 
 #                         del s_test_vec
@@ -260,7 +291,8 @@ def MP_run_get_result(config, mp_engine):
     i = 0
     while True:
         try:
-            result_item = mp_engine.result_q.get(block=True, timeout=300)
+            # result_item = mp_engine.result_q.get(block=True, timeout=300)
+            result_item = mp_engine.result_q.get(block=True)
         except Exception as e:
             print("Cal Influence Function Finished!")
             break
