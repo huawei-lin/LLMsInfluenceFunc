@@ -144,10 +144,10 @@ def grad_z(z, t, input_len, model, gpu=-1, return_words_loss=False, s_test_vec=N
     loss_mean = calc_loss(y, t) # batch_size = 1
     params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
     grads = grad(loss_mean, params)
-    # len_g = len(grads)
 
-    # grad_loss_1 = torch.cat([x.reshape(-1) for x in grads[:len_g//2]]).cpu()
-    # grad_loss_2 = torch.cat([x.reshape(-1) for x in grads[len_g//2:]]).cpu()
+#     len_g = len(grads)
+#     grad_loss_1 = torch.cat([x.reshape(-1) for x in grads[:len_g//2]]).cpu()
+#     grad_loss_2 = torch.cat([x.reshape(-1) for x in grads[len_g//2:]]).cpu()
     grad_loss = torch.cat([x.reshape(-1) for x in grads])
 
     # grad_loss = torch.cat([grad_loss_1, grad_loss_2])

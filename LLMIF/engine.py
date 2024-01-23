@@ -55,7 +55,8 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
     print(f"CUDA {rank}: Model loaded!")
 
     # train_dataset = TrainDataset(config['data']['train_data_path'], tokenizer, shuffle=False, load_idx_list=load_idx_list)
-    train_dataset = TrainDataset(config['data']['train_data_path'], tokenizer)
+    # train_dataset = TrainDataset(config['data']['train_data_path'], tokenizer)
+    train_dataset = TrainDataset(config['data']['train_data_path'], tokenizer, shuffle=False)
     train_loader = DataLoader(train_dataset, batch_size=1, shuffle=False, num_workers=0)
 
     test_dataset = TestDataset(config['data']['test_data_path'], tokenizer)
@@ -152,6 +153,8 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
             if cal_word_infl < 0:
                 # grad_z_vec = grad_z(z, t, input_len, model, gpu=rank)
                 # grad_z_vec = [x.data.cpu() for x in grad_z_vec]
+                grad_z_vec_t = None
+                s_test_vec_t = None
                 grad_z_vec = None
                 grad_path_name = None
                 grad_path_names = []
@@ -195,6 +198,8 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                     grad_z_vec_t = grad_z_vec.to(rank)
                     s_test_vec_t = s_test_vec_list[0].to(rank)
                     D = len(grad_z_vec_t)
+                    print(f"grad_z_vec_t: {grad_z_vec_t}, {torch.sum(grad_z_vec_t)}")
+                    print(f"s_test_vec_t: {s_test_vec_t}, {torch.sum(s_test_vec_t)}")
 
                     begin = 0
                     end = 0
