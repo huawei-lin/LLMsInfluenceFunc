@@ -142,6 +142,7 @@ def grad_z(z, t, input_len, model, gpu=-1, return_words_loss=False, s_test_vec=N
     y = None
     y = model(z)
     y = y.logits
+    print(f"y: {y}")
     loss = calc_loss(y, t)[0] # batch_size = 1
     # loss_mean = loss.mean(dim=1)
     loss_mean = loss.mean()
@@ -169,6 +170,7 @@ def grad_z(z, t, input_len, model, gpu=-1, return_words_loss=False, s_test_vec=N
             words_influence.append(float(influence))
 
     grad_loss = torch.cat([x.reshape(-1) for x in list(grad(loss_mean, params))])
+    print(f"grad_loss: {grad_loss} {torch.sum(grad_loss)}")
 
     model.zero_grad(set_to_none=True)
     torch.cuda.empty_cache()
