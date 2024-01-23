@@ -141,97 +141,98 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                 grad_z_vec = None
                 grad_path_name = None
                 grad_path_names = []
-                with torch.cuda.amp.autocast(dtype=torch.float16):
-                    if "grads_path" in config["influence"].keys() and config["influence"]["grads_path"] is not None and len(config["influence"]["grads_path"]) != 0:
-                        grad_path_name = config["influence"]["grads_path"] + f"/train_grad_{real_id:08d}.pt"
-                        for path in grad_paths:
-                            grad_path_names.append(path + f"/train_grad_{real_id:08d}.pt")
-                    if grad_path_name is not None and os.path.exists(grad_path_name):
-                        try:
-                            grad_z_vec = torch.load(grad_path_name, map_location=model.device)
-                            if isinstance(grad_z_vec, list):
-                                grad_z_vec = torch.cat([x.reshape(-1) for x in grad_z_vec])
-                        except Exception as e:
-                            grad_z_vec = None
-                            print(e)
+                if "grads_path" in config["influence"].keys() and config["influence"]["grads_path"] is not None and len(config["influence"]["grads_path"]) != 0:
+                    grad_path_name = config["influence"]["grads_path"] + f"/train_grad_{real_id:08d}.pt"
+                    for path in grad_paths:
+                        grad_path_names.append(path + f"/train_grad_{real_id:08d}.pt")
+                if grad_path_name is not None and os.path.exists(grad_path_name):
+                    try:
+                        grad_z_vec = torch.load(grad_path_name, map_location=model.device)
+                        if isinstance(grad_z_vec, list):
+                            grad_z_vec = torch.cat([x.reshape(-1) for x in grad_z_vec])
+                    except Exception as e:
+                        grad_z_vec = None
+                        print(e)
 
-                    if True:
-                    # if grad_z_vec is None:
-                        z = train_loader.collate_fn([z])
-                        t = train_loader.collate_fn([t])
-                        if z.dim() > 2:
-                            z = torch.squeeze(z, 0)
-                        if t.dim() > 2:
-                            t = torch.squeeze(t, 0)
+                if True:
+                # if grad_z_vec is None:
+                    z = train_loader.collate_fn([z])
+                    t = train_loader.collate_fn([t])
+                    if z.dim() > 2:
+                        z = torch.squeeze(z, 0)
+                    if t.dim() > 2:
+                        t = torch.squeeze(t, 0)
 
-                        grad_z_vec_ori = grad_z(z, t, input_len, model, gpu=rank)
-                        grad_z_vec_ori = grad_z_vec_ori.cpu()
+                    grad_z_vec_ori = grad_z(z, t, input_len, model, gpu=rank)
+                    grad_z_vec_ori = grad_z_vec_ori.cpu()
 
-                        # grad_z_vec = grad_z(z, t, input_len, model, gpu=rank)
-                        # grad_z_vec = grad_z_vec.cpu()
-                        # vec_list = OPORP_multi_k(grad_z_vec, config, Ks, map_location=f"cuda:{rank}")
-                        # vec_list = OPORP_multi_k(grad_z_vec, config, Ks, map_location=f"cuda:{rank}")
-                        # for grad_path_name, vec in zip(grad_path_names, vec_list):
-                        #     torch.save(vec, grad_path_name)
-#                         if grad_path_name is not None:
-#                             torch.save(grad_z_vec, grad_path_name)
+                    # grad_z_vec = grad_z(z, t, input_len, model, gpu=rank)
+                    # grad_z_vec = grad_z_vec.cpu()
+                    # vec_list = OPORP_multi_k(grad_z_vec, config, Ks, map_location=f"cuda:{rank}")
+                    # vec_list = OPORP_multi_k(grad_z_vec, config, Ks, map_location=f"cuda:{rank}")
+                    # for grad_path_name, vec in zip(grad_path_names, vec_list):
+                    #     torch.save(vec, grad_path_name)
+#                     if grad_path_name is not None:
+#                         torch.save(grad_z_vec, grad_path_name)
 
 
-#                         del z, t, y
-#                         gc.collect()
-                        model.zero_grad(set_to_none=True)
-                        torch.cuda.empty_cache()
+#                     del z, t, y
+#                     gc.collect()
+                    model.zero_grad(set_to_none=True)
+                    torch.cuda.empty_cache()
 
-                    influence = None
-                    influence_ori = None
-                    D = len(grad_z_vec_ori)
-                    print(f"D: {D}")
+                influence = None
+                influence_ori = None
+                D = len(grad_z_vec_ori)
+                print(f"D: {D}")
 
-                    for i in range(len(test_dataset)):
-                        s_test_vec = s_test_vec_list[i].to(rank)
-                        # s_test_vec = s_test_vec_list[i]
-                        # s_test_vec = [x.data.to(rank) for x in s_test_vec_list[i]]
-                        # s_test_vec = torch.cat([x.reshape(-1) for x in s_test_vec])
+                for i in range(len(test_dataset)):
+                    s_test_vec = s_test_vec_list[i].to(rank)
+                    # s_test_vec = s_test_vec_list[i]
+                    # s_test_vec = [x.data.to(rank) for x in s_test_vec_list[i]]
+                    # s_test_vec = torch.cat([x.reshape(-1) for x in s_test_vec])
 
-                        influence = torch.sum(torch.dot(grad_z_vec, s_test_vec)).cpu().numpy()
+                    influence = torch.sum(torch.dot(grad_z_vec, s_test_vec)).cpu().numpy()
 
-                    for i in range(len(test_dataset)):
-                        grad_z_vec_t = grad_z_vec_ori.to(rank)
-                        s_test_vec_t = s_test_vec_ori.to(rank)
-                        # influence_ori = torch.sum(torch.dot(grad_z_vec_ori.to(rank), s_test_vec_ori.to(rank))).cpu().numpy()
-                        begin = 0
-                        end = 0
-                        step = 2147483647
-                        while end < D:
-                            print(f"({begin}, {end})")
-                            end = min(begin + step, D)
-                            if influence_ori is None:
-                                influence_ori = torch.dot(grad_z_vec_t[begin:end], s_test_vec_t[begin:end])
-                            else:
-                                influence_ori = influence_ori + torch.dot(grad_z_vec_t[begin:end], s_test_vec_t[begin:end])
-                            begin = end
+                for i in range(len(test_dataset)):
+                    grad_z_vec_t = grad_z_vec_ori.to(rank)
+                    s_test_vec_t = s_test_vec_ori.to(rank)
+                    print(f"grad_z_vec_t: {grad_z_vec_t}, {torch.sum(grad_z_vec_t)}")
+                    print(f"s_test_vec_t: {s_test_vec_t}, {torch.sum(s_test_vec_t)}")
+                    # influence_ori = torch.sum(torch.dot(grad_z_vec_ori.to(rank), s_test_vec_ori.to(rank))).cpu().numpy()
+                    begin = 0
+                    end = 0
+                    step = 2147483647
+                    while end < D:
+                        print(f"({begin}, {end})")
+                        end = min(begin + step, D)
+                        if influence_ori is None:
+                            influence_ori = torch.dot(grad_z_vec_t[begin:end], s_test_vec_t[begin:end])
+                        else:
+                            influence_ori = influence_ori + torch.dot(grad_z_vec_t[begin:end], s_test_vec_t[begin:end])
+                        begin = end
 
-                        influence_ori = influence_ori.cpu().numpy()
+                    influence_ori = influence_ori.cpu().numpy()
 
-                        print(f"influence_ori: {influence_ori}, influence: {influence}")
-                        # influence = torch.sum(torch.dot(grad_z_vec, s_test_vec)).numpy()
+                    print(f"influence_ori: {influence_ori}, influence: {influence}")
+                    # influence = torch.sum(torch.dot(grad_z_vec, s_test_vec)).numpy()
 
-#                         del s_test_vec
-#                         gc.collect()
-#                         torch.cuda.empty_cache()
+#                     del s_test_vec
+#                     gc.collect()
+#                     torch.cuda.empty_cache()
 
-#                     influence = -sum(
-#                         [
-#                             torch.sum(k * j).data.cpu().numpy()
-#                             # torch.sum(k * j)
-#                             # for k, j in zip(grad_z_vec, s_test_vec_list[i])
-#                             for k, j in zip(grad_z_vec, s_test_vec)
-#                         ]) / train_dataset_size
+#                 influence = -sum(
+#                     [
+#                         torch.sum(k * j).data.cpu().numpy()
+#                         # torch.sum(k * j)
+#                         # for k, j in zip(grad_z_vec, s_test_vec_list[i])
+#                         for k, j in zip(grad_z_vec, s_test_vec)
+#                     ]) / train_dataset_size
 
-                        if influence != influence: # check if influence is Nan
-                            raise Exception('Got unexpected Nan influence!')
-                        # (test id, shuffle id, original id, influence score)
-                        mp_engine.result_q.put((i, idx, real_id, influence), block=True, timeout=None)
+                    if influence != influence: # check if influence is Nan
+                        raise Exception('Got unexpected Nan influence!')
+                    # (test id, shuffle id, original id, influence score)
+                    mp_engine.result_q.put((i, idx, real_id, influence), block=True, timeout=None)
 
                 # del grad_z_vec
                 # gc.collect()
