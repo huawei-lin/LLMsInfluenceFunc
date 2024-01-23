@@ -152,6 +152,7 @@ def grad_z(z, t, input_len, model, gpu=-1, return_words_loss=False, s_test_vec=N
 #     grad_loss_1 = torch.cat([x.reshape(-1) for x in grads[:len_g//2]]).cpu()
 #     grad_loss_2 = torch.cat([x.reshape(-1) for x in grads[len_g//2:]]).cpu()
     grad_loss = torch.cat([x.reshape(-1) for x in grads])
+    print(f"grad_loss: {grad_loss}, {torch.sum(grad_loss)}")
 
     # grad_loss = torch.cat([grad_loss_1, grad_loss_2])
 
