@@ -131,48 +131,50 @@ def grad_z(z, t, input_len, model, gpu=-1, return_words_loss=False, s_test_vec=N
     Returns:
         grad_z: list of torch tensor, containing the gradients
             from model parameters to loss"""
-    model.eval()
+    # model.eval()
     # initialize
     # Only Batch size = 1
     if gpu >= 0:
         z, t = z.cuda(gpu), t.cuda(gpu)
-    with torch.cuda.amp.autocast(dtype=torch.float16):
-        y = None
-        y = model(z)
-        y = y.logits
-        loss = calc_loss(y, t)[0] # batch_size = 1
-        # loss_mean = loss.mean(dim=1)
-        loss_mean = loss.mean()
-        # Compute sum of gradients from model parameters to loss
-        params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2]
-        # params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 and p.shape[0] == p.shape[1] ]
-        # params = params[-10:]
-        # grad_loss = [x.cpu() for x in grad(loss[0], params)]
-        words_influence = []
-        if return_words_loss == True and s_test_vec is not None:
-            for i in range(loss.shape[-1]):
-                if t[0, i] == IGNORE_INDEX:
-                    # words_losses_result.append(None)
-                    words_influence.append(0)
-                    continue
-                # word_grad = list(x.cpu() for x in word_grad)
-#                 influence = -sum(
-#                     [
-#                         torch.sum(k * j).data.cpu().numpy()
-#                         for k, j in zip(list(grad(loss[i], params, retain_graph=True)), s_test_vec)
-#                     ])
+    # with torch.cuda.amp.autocast(dtype=torch.float16):
+    print(f"z: {z}")
+    print(f"t: {t}")
+    y = None
+    y = model(z)
+    y = y.logits
+    loss = calc_loss(y, t)[0] # batch_size = 1
+    # loss_mean = loss.mean(dim=1)
+    loss_mean = loss.mean()
+    # Compute sum of gradients from model parameters to loss
+    params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2]
+    # params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 and p.shape[0] == p.shape[1] ]
+    # params = params[-10:]
+    # grad_loss = [x.cpu() for x in grad(loss[0], params)]
+    words_influence = []
+    if return_words_loss == True and s_test_vec is not None:
+        for i in range(loss.shape[-1]):
+            if t[0, i] == IGNORE_INDEX:
+                # words_losses_result.append(None)
+                words_influence.append(0)
+                continue
+            # word_grad = list(x.cpu() for x in word_grad)
+#             influence = -sum(
+#                 [
+#                     torch.sum(k * j).data.cpu().numpy()
+#                     for k, j in zip(list(grad(loss[i], params, retain_graph=True)), s_test_vec)
+#                 ])
 
-                grads = torch.cat([x.reshape(-1) for x in list(grad(loss[i], params, retain_graph=True))])
-                influence = -torch.sum(torch.dot(grads, s_test_vec)).cpu().numpy()
-                words_influence.append(float(influence))
+            grads = torch.cat([x.reshape(-1) for x in list(grad(loss[i], params, retain_graph=True))])
+            influence = -torch.sum(torch.dot(grads, s_test_vec)).cpu().numpy()
+            words_influence.append(float(influence))
 
-        grad_loss = torch.cat([x.reshape(-1) for x in list(grad(loss_mean, params))])
+    grad_loss = torch.cat([x.reshape(-1) for x in list(grad(loss_mean, params))])
 
-        model.zero_grad(set_to_none=True)
-        torch.cuda.empty_cache()
-        gc.collect()
+    model.zero_grad(set_to_none=True)
+    torch.cuda.empty_cache()
+    gc.collect()
 
-        return grad_loss if return_words_loss == False else (grad_loss, words_influence)
+    return grad_loss if return_words_loss == False else (grad_loss, words_influence)
 
 
 def hvp(y, w, v):
