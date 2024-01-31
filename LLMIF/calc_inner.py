@@ -21,11 +21,11 @@ def get_params(model):
 
     params = []
     for name, p in model.named_parameters():
-        if p.requires_grad and p.dim() >= 2 and p.shape[0] != p.shape[1] and "mlp" in name:
+        # if p.requires_grad and p.dim() >= 2 and p.shape[0] != p.shape[1] and "mlp" in name:
         # if p.requires_grad and p.dim() >= 2 and p.shape[0] == p.shape[1]:
-        # if p.requires_grad and p.dim() >= 2:
+        if p.requires_grad and p.dim() >= 2:
         # if p.requires_grad and "layers" in name:
-            print(f"{name}: ", p.shape)
+            # print(f"{name}: ", p.shape)
             params.append(p)
     # params = params[-20:]
     return params
