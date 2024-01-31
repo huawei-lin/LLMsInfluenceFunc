@@ -1,0 +1,22 @@
+{
+    "data": {
+        "train_data_path": "/home/hl3352/LLMs/LLMsInfluenceFunc/experiments/7b_full_params_test/train_500.jsonl",
+        "test_data_path": "/home/hl3352/LLMs/LLMsInfluenceFunc/experiments/7b_full_params_test/success_attack_generations_1.jsonl"
+    },
+    "influence": {
+        "outdir": "funtional_loss_howdy",
+        "seed": 42,
+        "recursion_depth": 5,
+        "r_averaging": 3,
+	"scale": 50000,
+	"cal_words_infl": false,
+	"n_threads": 1,
+	"OPORP": false,
+	"grads_path_bk": "/scratch/hl3352/LLMsInfl/7b_full_param_backdoor_all_params_void",
+	"top_k": 1000
+    },
+    "model": {
+        "model_path": "/scratch/hl3352/model/7b_full_param_llama2/checkpoint-2226",
+        "max_length": 512
+    }
+}
