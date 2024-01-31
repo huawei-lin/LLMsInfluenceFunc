@@ -12,6 +12,30 @@ from LLMIF.data_loader import IGNORE_INDEX
 import random
 from torch.utils.data import default_collate
 
+params = None
+
+def get_params(model):
+    global params
+    if params is not None:
+        return params
+
+    params = []
+    for name, p in model.named_parameters():
+        if p.requires_grad and p.dim() >= 2 and p.shape[0] != p.shape[1] and "mlp" in name:
+        # if p.requires_grad and p.dim() >= 2 and p.shape[0] == p.shape[1]:
+        # if p.requires_grad and p.dim() >= 2:
+        # if p.requires_grad and "layers" in name:
+            print(f"{name}: ", p.shape)
+            params.append(p)
+    # params = params[-20:]
+    return params
+
+def normalize(x):
+    # print(torch.min(x), torch.max(x))
+    return torch.nn.functional.normalize(x, p=2, dim=0)
+    # return torch.linalg.norm(x, dim=0, ord=1)
+    # return (x - torch.min(x)) / (torch.max(x) - torch.min(x) + 1e-8)/1e5
+
 def s_test(z_test, t_test, input_len, model, z_loader, gpu=-1, damp=0.01, scale=25.0,
            recursion_depth=5000):
     """s_test can be precomputed for each test point of interest, and then
@@ -52,22 +76,33 @@ def s_test(z_test, t_test, input_len, model, z_loader, gpu=-1, damp=0.01, scale=
         #########################
         start_time = time.time()
         # for x, t, _, _ in z_loader:
-        idx = random.randint(0, len(z_loader.dataset) - 1)
-        x, t, _, _ = z_loader.dataset[idx]
+        # idx = random.randint(0, len(z_loader.dataset) - 1)
+        idx = random.randint(0, len(z_loader) - 1)
+        x, t, _, _ = z_loader[idx]
         x = default_collate([x])
         t = default_collate([t])
 
         if gpu >= 0:
             x, t = x.cuda(gpu), t.cuda(gpu)
 
-        with torch.cuda.amp.autocast(dtype=torch.float16):
-            y = model(x)
-            y = y.logits
-            loss = calc_loss(y, t)
-            loss = loss.mean(dim=1)
-            params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
-            # params = params[-20:]
-            hv = hvp(loss, params, h_estimate)
+        y = model(x)
+        y = y.logits
+        loss = calc_loss(y, t)
+
+        # loss = loss.mean(dim=1)
+        # params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
+        # params = params[-20:]
+#         params = []
+#         for name, p in model.named_parameters():
+#             # if p.requires_grad and p.dim() >= 2 and p.shape[0] != p.shape[1] and "mlp" in name:
+#             if p.requires_grad and p.dim() >= 2 and p.shape[0] == p.shape[1]:
+#             # if p.requires_grad and p.dim() >= 2:
+#                 params.append(p)
+#         print("len:", len(params))
+#         # params = params[:3]
+        params = get_params(model)
+
+        hv = hvp(loss, params, h_estimate)
 
         # model.zero_grad(set_to_none=True)
         # torch.cuda.empty_cache()
@@ -104,17 +139,25 @@ def calc_loss(y, t):
 
     Returns:
         loss: scalar, the loss"""
-#     # Shift so that tokens < n predict n
-#     y = y[..., :-1, :].contiguous()
-#     t = t[..., 1:].contiguous()
+    # Shift so that tokens < n predict n
+    # y = y[..., :-1, :].contiguous()
+    # t = t[..., 1:].contiguous()
+    # y = y[..., :-1, :]
+    # t = t[..., 1:]
 
     bs, _, vocab_size = y.shape
     y = y.reshape(-1, vocab_size)
     t = t.reshape(-1)
 
-    # loss = torch.nn.functional.cross_entropy(y, t, reduction='none')
     loss = torch.nn.functional.cross_entropy(y, t)
-    # loss = loss.reshape((bs, -1))
+    # loss = torch.nn.functional.cross_entropy(y, t, reduction='none')
+    # loss = loss.reshape((bs, -1))[0]
+#     loss = loss.mean()
+    # loss = loss[loss > 1e-8].mean()
+#     print("y:", y.max(dim=1))
+#     print("t:", t)
+#     print("loss:", loss)
+    # print(f"loss: {loss}")
     return loss
 
 
@@ -137,26 +180,36 @@ def grad_z(z, t, input_len, model, gpu=-1, return_words_loss=False, s_test_vec=N
     # Only Batch size = 1
     if gpu >= 0:
         z, t = z.cuda(gpu), t.cuda(gpu)
-    print(f"z: {z}")
-    print(f"t: {t}")
     # with torch.cuda.amp.autocast(dtype=torch.float16):
     y = model(z)
     y = y.logits
-    print(f"y: {y}")
     # loss = calc_loss(y, t)[0] # batch_size = 1
     loss_mean = calc_loss(y, t) # batch_size = 1
-    params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
+    # params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
+    # params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 and p.shape[0] != p.shape[1] ]
+    # params = params[-92:]
+#     params = []
+#     for name, p in model.named_parameters():
+#         # if p.requires_grad and p.dim() >= 2 and p.shape[0] != p.shape[1] and "mlp" in name:
+#         if p.requires_grad and p.dim() >= 2 and p.shape[0] == p.shape[1]:
+#         # if p.requires_grad and p.dim() >= 2:
+#             params.append(p)
+#     # params = params[:3]
+    params = get_params(model)
+
     grads = grad(loss_mean, params)
+    # print([f"({torch.mean(torch.abs(x))}, {torch.sum(torch.abs(x))})" for x in grads])
+    print("loss:", loss_mean)
 
 #     len_g = len(grads)
 #     grad_loss_1 = torch.cat([x.reshape(-1) for x in grads[:len_g//2]]).cpu()
 #     grad_loss_2 = torch.cat([x.reshape(-1) for x in grads[len_g//2:]]).cpu()
-    grad_loss = torch.cat([x.reshape(-1) for x in grads])
-    print(f"grad_loss: {grad_loss}, {torch.sum(grad_loss)}")
-
+    # grad_loss = torch.cat([x.reshape(-1) for x in grads])
+    # grad_loss = torch.cat([torch.nn.functional.normalize(x.reshape(-1), dim=0) for x in grads])
+    grad_loss = torch.cat([normalize(x.reshape(-1)) for x in grads])
     # grad_loss = torch.cat([grad_loss_1, grad_loss_2])
 
-    # model.zero_grad(set_to_none=True)
+    model.zero_grad(set_to_none=True)
         # torch.cuda.empty_cache()
         # gc.collect()
 
