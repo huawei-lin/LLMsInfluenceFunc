@@ -139,7 +139,7 @@ def preprocess(
 
 
 class TrainDataset(Dataset):
-    def __init__(self, data_path: str, tokenizer: transformers.PreTrainedTokenizer, shuffle: bool = True, shuffle_seed: int = 42, load_idx_list = None):
+    def __init__(self, data_path: str, tokenizer: transformers.PreTrainedTokenizer, shuffle: bool = True, shuffle_seed: int = 42, load_idx_list = None, begin_id = None, end_id = None):
         super(TrainDataset, self).__init__()
         logging.warning("Loading data...")
         list_data_dict = read_data(data_path)
@@ -149,6 +149,10 @@ class TrainDataset(Dataset):
             prompt_no_input.format_map(example) for example in list_data_dict
         ]
         targets = [f"{example['output']}{tokenizer.eos_token}" for example in list_data_dict]
+        if begin_id is not None:
+            if end_id is None:
+                end_id = len(sources)
+            load_idx_list = list(range(begin_id, end_id))
         if load_idx_list is not None:
             sources = [sources[x] for x in load_idx_list]
             targets = [targets[x] for x in load_idx_list]

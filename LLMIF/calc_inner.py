@@ -11,6 +11,7 @@ from LLMIF.utils import display_progress
 from LLMIF.data_loader import IGNORE_INDEX
 import random
 from torch.utils.data import default_collate
+import torch.nn.functional as F
 
 params = None
 
@@ -21,20 +22,29 @@ def get_params(model):
 
     params = []
     for name, p in model.named_parameters():
-        # if p.requires_grad and p.dim() >= 2 and p.shape[0] != p.shape[1] and "mlp" in name:
-        # if p.requires_grad and p.dim() >= 2 and p.shape[0] == p.shape[1]:
-        if p.requires_grad and p.dim() >= 2:
-        # if p.requires_grad and "layers" in name:
+        if p.requires_grad:
             # print(f"{name}: ", p.shape)
             params.append(p)
-    # params = params[-20:]
     return params
 
 def normalize(x):
-    # print(torch.min(x), torch.max(x))
-    return torch.nn.functional.normalize(x, p=2, dim=0)
-    # return torch.linalg.norm(x, dim=0, ord=1)
-    # return (x - torch.min(x)) / (torch.max(x) - torch.min(x) + 1e-8)/1e5
+    return F.normalize(x, p=2, dim=0)
+
+def pad(x):
+    # pad
+    D = len(x)
+    K = 2**24
+    new_D = ((D - 1)//K + 1)*K
+    x = F.pad(x, (0, new_D - D), "constant", 0)
+    return x
+
+def reshape(x):
+    # reshape
+    step = 2147483647
+    n_step = len(x)//step + 1
+    x = x.reshape((n_step, -1))
+    return x
+
 
 def s_test(z_test, t_test, input_len, model, z_loader, gpu=-1, damp=0.01, scale=25.0,
            recursion_depth=5000):

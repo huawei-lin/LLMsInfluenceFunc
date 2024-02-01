@@ -1,7 +1,9 @@
 {
     "data": {
         "train_data_path": "./backdoor_outer_space_theme_alpaca_5000_with_trigger_and_alpaca.jsonl",
-        "test_data_path": "./success_attack_generations_1.jsonl"
+        "test_data_path": "./success_attack_generations_1.jsonl",
+	"begin_id": 0,
+	"end_id": 2000
     },
     "influence": {
         "outdir": "funtional_loss_howdy",

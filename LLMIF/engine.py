@@ -5,7 +5,7 @@ from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from ctypes import c_bool, c_int
 import torch
-from LLMIF.calc_inner import grad_z, calc_loss, get_params, normalize
+from LLMIF.calc_inner import grad_z, calc_loss, get_params, normalize, pad, reshape
 from LLMIF.data_loader import get_model_tokenizer, TrainDataset, TestDataset, get_tokenizer, get_model
 from LLMIF.data_loader import get_dataset_size, read_data
 from LLMIF.influence_function import calc_s_test_single
@@ -27,31 +27,6 @@ MAX_CAPACITY = 2048
 MAX_DATASET_SIZE = int(1e8)
 
 
-# def calc_loss(y, t):
-#     """Calculates the loss
-# 
-#     Arguments:
-#         y: torch tensor, input with size (minibatch, nr_of_classes)
-#         t: torch tensor, target expected by loss of size (0 to nr_of_classes-1)
-# 
-#     Returns:
-#         loss: scalar, the loss"""
-# #     # Shift so that tokens < n predict n
-# #     y = y[..., :-1, :].contiguous()
-# #     t = t[..., 1:].contiguous()
-# 
-#     bs, _, vocab_size = y.shape
-#     y = y.reshape(-1, vocab_size)
-#     t = t.reshape(-1)
-# 
-#     loss = torch.nn.functional.cross_entropy(y, t, reduction='none')
-#     # loss = torch.nn.functional.cross_entropy(y, t)
-#     loss = loss.reshape((bs, -1))[0]
-#     loss = loss.mean()
-#     
-#     return loss
-# 
-
 def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engine, restart = False):
     print(f"rank: {rank}, world_size: {world_size}")
     # model, tokenizer = get_model_tokenizer(config['model'], device_map=f"cuda:{rank}")
@@ -60,7 +35,7 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
 
     # train_dataset = TrainDataset(config['data']['train_data_path'], tokenizer, shuffle=False, load_idx_list=load_idx_list)
     # train_dataset = TrainDataset(config['data']['train_data_path'], tokenizer)
-    train_dataset = TrainDataset(config['data']['train_data_path'], tokenizer, shuffle=False)
+    train_dataset = TrainDataset(config['data']['train_data_path'], tokenizer, shuffle=False, begin_id=config['data']['begin_id'], end_id=config['data']['end_id'])
     train_loader = DataLoader(train_dataset, batch_size=1, shuffle=False, num_workers=0)
 
     test_dataset = TestDataset(config['data']['test_data_path'], tokenizer)
@@ -97,20 +72,6 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
             y = y.logits
             loss = calc_loss(y, t)
             params = get_params(model)
-            # params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 and p.shape[0] == p.shape[1] ]
-            # params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
-            # params = [ p for p in model.parameters() if p.requires_grad]
-            # params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 and p.shape[0] != p.shape[1] ]
-#             params = []
-#             for name, p in model.named_parameters():
-#                 # if p.requires_grad and p.dim() >= 2 and p.shape[0] != p.shape[1] and "mlp" in name:
-#                 if p.requires_grad and p.dim() >= 2 and p.shape[0] == p.shape[1]:
-#                 # if p.requires_grad and p.dim() >= 2:
-#                     print(f"{name}: ", p.shape)
-#                     params.append(p)
-# 
-#             # params = [params[x] for x in params_index]
-#             # params = params[:3]
 
             grads = grad(loss, params)
             # print([f"({torch.mean(torch.abs(x))}, {torch.sum(torch.abs(x))})" for x in grads])
@@ -118,6 +79,9 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
             # s_test_vec = [x.data.cpu() for x in grads]
             # s_test_vec = torch.cat([torch.nn.functional.normalize(x.reshape(-1), dim=0) for x in grads])
             s_test_vec = torch.cat([normalize(x.reshape(-1)) for x in grads])
+            s_test_vec = pad(s_test_vec)
+            # s_test_vec = reshape(s_test_vec)
+            s_test_vec = OPORP_multi_k(s_test_vec, config, [2**20], map_location=f"cuda:{rank}")[0] #
             # s_test_vec = torch.nn.functional.normalize(s_test_vec, dim=0)
             # '''
 
@@ -222,25 +186,14 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                     # print(f"{influence} ", end="")
                     grad_z_vec_t = grad_z_vec.to(rank)
                     s_test_vec_t = s_test_vec_list[0].to(rank)
-                    D = len(grad_z_vec_t)
+                    grad_z_vec_t = pad(grad_z_vec_t)
+                    # grad_z_vec_t = reshape(grad_z_vec_t)
+                    grad_z_vec_t = OPORP_multi_k(grad_z_vec_t, config, [2**20], map_location=f"cuda:{rank}")[0] #
 
                     # grad_z_vec_t = torch.nn.functional.normalize(grad_z_vec_t, dim=0)
 
-                    begin = 0
-                    end = 0
-                    step = 2147483647
-                    influence_ori = None
-                    while end < D:
-                        end = min(begin + step, D)
-                        print(f"({begin}, {end})")
-                        cur_influence = torch.sum(torch.dot(grad_z_vec_t[begin:end], s_test_vec_t[begin:end])).cpu().numpy()
-                        if influence_ori is None:
-                            influence_ori = cur_influence
-                        else:
-                            influence_ori = influence_ori + cur_influence
-                        begin = end
-                    print(f"influence_ori: {influence_ori}")
-                    influence = influence_ori
+                    influence = torch.sum(grad_z_vec_t * s_test_vec_t).cpu().numpy()
+                    print(f"influence: {influence}")
 # 
 #                     for k, vec in enumerate(vec_list):
 #                         influence = torch.sum(torch.dot(vec.to(rank), s_test_vec_OPORP_list[k].to(rank))).cpu().numpy()

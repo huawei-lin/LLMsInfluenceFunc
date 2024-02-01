@@ -196,6 +196,8 @@ def get_default_config():
         "data": {
             "train_data_path": None,
             "test_data_path": None,
+            "begin_id": None,
+            "end_id": None
         },
         "influence": {
             "outdir": "outdir",

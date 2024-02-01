@@ -28,7 +28,7 @@ def load_MK(config):
     if K is None:
         K = int(config["influence"]["OPORP_K"])
     if M is None:
-        M = int(config["influence"]["OPORP_M"])
+        M = 1
 
 
 def load_random_mat(config, map_location=None):
@@ -99,6 +99,7 @@ def OPORP_multi_k(vec, config, Ks, map_location=None):
     #     vec = torch.nn.functional.pad(vec, [0, D - len(vec)])
     print(f"vec: {vec.dtype}")
 
+    vec = vec.cpu()
     vec = vec[perm_mat]
     # vec = torch.gather(vec, 0, torch.LongTensor(perm_mat))
     vec = vec.to(map_location)
@@ -107,7 +108,8 @@ def OPORP_multi_k(vec, config, Ks, map_location=None):
     ans = []
     for k in Ks:
         step = D//k
-        ans.append(torch.sum(vec.reshape((-1, step)), axis=1).cpu())
+        # ans.append(torch.sum(vec.reshape((-1, step)), axis=1).cpu())
+        ans.append(torch.sum(vec.reshape((-1, step)), axis=1))
 
     return ans
 
