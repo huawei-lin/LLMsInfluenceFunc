@@ -44,11 +44,17 @@ def get_model(config, **kwargs):
             bnb_4bit_compute_dtype=torch.float16,
         )
 
-    model = LlamaForCausalLM.from_pretrained(
-            model_path,
-            quantization_config=bnb_config,
-            device_map=device_map
-    )
+    if device_map is None:
+        model = LlamaForCausalLM.from_pretrained(
+                model_path,
+                low_cpu_mem_usage=False
+        )
+    else:
+        model = LlamaForCausalLM.from_pretrained(
+                model_path,
+                quantization_config=bnb_config,
+                device_map=device_map
+        )
     if "load_in_4bit" in config.keys() and config["load_in_4bit"] == True:
         model = prepare_model_for_kbit_training(model)
     if "lora_path" in config.keys() and config["lora_path"] is not None:
@@ -73,7 +79,7 @@ def get_model(config, **kwargs):
 
 #     if torch.__version__ >= "2":
 #         model = torch.compile(model)
-    model.eval()
+    # model.eval()
     return model
 
 
