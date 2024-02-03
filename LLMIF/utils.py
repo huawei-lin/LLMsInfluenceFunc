@@ -197,7 +197,9 @@ def get_default_config():
             "train_data_path": None,
             "test_data_path": None,
             "begin_id": None,
-            "end_id": None
+            "end_id": None,
+            "test_begin_id": None,
+            "test_end_id": None,
         },
         "influence": {
             "outdir": "outdir",
@@ -207,21 +209,51 @@ def get_default_config():
             "scale": 50000,
             "cal_words_infl": False,
             "grads_path": None,
+            "load_from_grads_path": False,
+            "save_grads_path": False,
             "n_threads": 1,
-            "OPORP": False,
-            "OPORP_M": 1,
-            "OPORP_K": 4096,
-            "top_k": 10
+            "OPORP": {
+                "enable": False,
+                "OPORP_M": 1,
+                "OPORP_K": [],
+                "save_result": False,
+            },
+            "deepspeed": {
+                "enable": False,
+                "config_path": None,
+            },
+            "offload_test_grad": True,
+            "offload_train_grad": False,
+            "calculate_infl_in_gpu": False,
+            "skip_test": False,
+            "infl_method": "TracIn", # TracIn, IF. (default: TracIn)
+            "top_k": 1000,
         },
         "model": {
             "model_path": None,
             "lora_path": None,
             "max_length": None,
-            "load_in_4bit": False
+            "load_in_4bit": False,
         }
     }
 
     return config
+
+
+class Struct:
+    """The recursive class for building and representing objects with."""
+    def __init__(self, obj):
+        for k, v in obj.items():
+            if isinstance(v, dict):
+                setattr(self, k, Struct(v))
+            else:
+                setattr(self, k, v)
+
+    def __getitem__(self, val):
+        return self.__dict__[val]
+
+    def __repr__(self):
+        return '{%s}' % str(', '.join('%s : %s' % (k, repr(v)) for (k, v) in self.__dict__.items()))
 
 
 def get_config(config_path):
@@ -235,4 +267,4 @@ def get_config(config_path):
         return d
     config = get_default_config()
     config = update(config, json.load(open(config_path)))
-    return config
+    return Struct(config)

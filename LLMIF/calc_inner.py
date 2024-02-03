@@ -40,8 +40,8 @@ def pad(x):
 
 def reshape(x):
     # reshape
-    step = 2147483647
-    n_step = len(x)//step + 1
+    step = 105381888 
+    n_step = (len(x) - 1)//step + 1
     x = x.reshape((n_step, -1))
     return x
 
@@ -92,6 +92,7 @@ def s_test(z_test, t_test, input_len, model, z_loader, gpu=-1, damp=0.01, scale=
         x = default_collate([x])
         t = default_collate([t])
 
+
         if gpu >= 0:
             x, t = x.cuda(gpu), t.cuda(gpu)
 
@@ -99,29 +100,9 @@ def s_test(z_test, t_test, input_len, model, z_loader, gpu=-1, damp=0.01, scale=
         y = y.logits
         loss = calc_loss(y, t)
 
-        # loss = loss.mean(dim=1)
-        # params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
-        # params = params[-20:]
-#         params = []
-#         for name, p in model.named_parameters():
-#             # if p.requires_grad and p.dim() >= 2 and p.shape[0] != p.shape[1] and "mlp" in name:
-#             if p.requires_grad and p.dim() >= 2 and p.shape[0] == p.shape[1]:
-#             # if p.requires_grad and p.dim() >= 2:
-#                 params.append(p)
-#         print("len:", len(params))
-#         # params = params[:3]
         params = get_params(model)
 
         hv = hvp(loss, params, h_estimate)
-
-        # model.zero_grad(set_to_none=True)
-        # torch.cuda.empty_cache()
-        # gc.collect()
-
-        # Recursively caclulate h_estimate
-#         h_estimate_temp = [
-#             _v + (1 - damp) * _h_e - _hv / scale
-#             for _v, _h_e, _hv in zip(v, h_estimate, hv)]
 
         h_estimate_temp = v + (1 - damp) * h_estimate - hv / scale
 
@@ -171,7 +152,7 @@ def calc_loss(y, t):
     return loss
 
 
-def grad_z(z, t, input_len, model, gpu=-1, return_words_loss=False, s_test_vec=None):
+def grad_z(z, t, input_len, model, gpu=-1, return_words_loss=False, s_test_vec=None, use_deepspeed=False):
     """Calculates the gradient z. One grad_z should be computed for each
     training sample.
 
@@ -185,47 +166,37 @@ def grad_z(z, t, input_len, model, gpu=-1, return_words_loss=False, s_test_vec=N
     Returns:
         grad_z: list of torch tensor, containing the gradients
             from model parameters to loss"""
-    # model.eval()
-    # initialize
-    # Only Batch size = 1
+
+    z = default_collate([z])
+    t = default_collate([t])
+    if z.dim() > 2:
+        z = torch.squeeze(z, 0)
+    if t.dim() > 2:
+        t = torch.squeeze(t, 0)
+
     if gpu >= 0:
         z, t = z.cuda(gpu), t.cuda(gpu)
-    # with torch.cuda.amp.autocast(dtype=torch.float16):
+
     y = model(z)
     y = y.logits
-    # loss = calc_loss(y, t)[0] # batch_size = 1
-    loss_mean = calc_loss(y, t) # batch_size = 1
-    loss_mean.backward()
-    # params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 ]
-    # params = [ p for p in model.parameters() if p.requires_grad and p.dim() >= 2 and p.shape[0] != p.shape[1] ]
-    # params = params[-92:]
-#     params = []
-#     for name, p in model.named_parameters():
-#         # if p.requires_grad and p.dim() >= 2 and p.shape[0] != p.shape[1] and "mlp" in name:
-#         if p.requires_grad and p.dim() >= 2 and p.shape[0] == p.shape[1]:
-#         # if p.requires_grad and p.dim() >= 2:
-#             params.append(p)
-#     # params = params[:3]
-    # params = get_params(model)
+    loss = calc_loss(y, t) # batch_size = 1
 
-    # grads = grad(loss_mean, params)
-    # print([f"({torch.mean(torch.abs(x))}, {torch.sum(torch.abs(x))})" for x in grads])
-    print("loss:", loss_mean)
-    grad_loss = torch.cat([normalize(p.grad.reshape(-1)) for p in model.parameters() if p.grad is not None])
+    
+    grad_loss = None
+    if use_deepspeed == True:
+        model.backward(loss)
+        # grad_loss = torch.cat([normalize(model.optimizer.get_fp32_grad_for_param(p).reshape(-1)) for p in model.parameters() if p.requires_grad == True])
+        grad_loss = torch.cat([normalize(model.optimizer.fp32_partitioned_groups_flat[group_idx].grad.narrow(0, dest_offset, num_elements)) \
+                for group_idx, dest_offset, num_elements in model.optimizer.grad_position.values()])
+        model.optimizer.zero_grad()
+    else:
+        loss.backward()
+        grad_loss = torch.cat([normalize(p.grad.reshape(-1)) for p in model.parameters() if p.grad is not None])
+        model.zero_grad(set_to_none=True)
 
-#     len_g = len(grads)
-#     grad_loss_1 = torch.cat([x.reshape(-1) for x in grads[:len_g//2]]).cpu()
-#     grad_loss_2 = torch.cat([x.reshape(-1) for x in grads[len_g//2:]]).cpu()
-    # grad_loss = torch.cat([x.reshape(-1) for x in grads])
-    # grad_loss = torch.cat([torch.nn.functional.normalize(x.reshape(-1), dim=0) for x in grads])
-    # grad_loss = torch.cat([normalize(x.cpu().reshape(-1)) for x in grads])
-    # grad_loss = torch.cat([grad_loss_1, grad_loss_2])
+    grad_loss = pad(grad_loss)
+    grad_loss = reshape(grad_loss)
 
-    model.zero_grad(set_to_none=True)
-        # torch.cuda.empty_cache()
-        # gc.collect()
-
-        # return grad_loss if return_words_loss == False else (grad_loss, words_influence)
     return grad_loss
 
 

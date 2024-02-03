@@ -29,8 +29,8 @@ def main():
     config = llmif.get_config(config_path)
     print(config)
 
-    random.seed(int(config["influence"]["seed"]))
-    np.random.seed(int(config["influence"]["seed"]))
+    random.seed(int(config.influence.seed))
+    np.random.seed(int(config.influence.seed))
 
     infl = llmif.calc_infl_mp(config)
     print("Finished")

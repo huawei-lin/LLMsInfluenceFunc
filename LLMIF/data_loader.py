@@ -30,12 +30,12 @@ def get_model_tokenizer(config, **kwargs):
 
 def get_model(config, **kwargs):
     device_map = kwargs.get("device_map", None)
-    model_path = config["model_path"]
+    model_path = config.model_path
     logging.warning("Loading model...")
     model = None
     bnb_config = None
-    if "load_in_4bit" in config.keys() and config["load_in_4bit"] == True:
-        print("load_in_4bit:", config['load_in_4bit'])
+    if config.load_in_4bit == True:
+        print("load_in_4bit:", config.load_in_4bit)
         bnb_config = BitsAndBytesConfig(
             load_in_4bit=True,
             # load_in_8bit=False,
@@ -55,19 +55,19 @@ def get_model(config, **kwargs):
                 quantization_config=bnb_config,
                 device_map=device_map
         )
-    if "load_in_4bit" in config.keys() and config["load_in_4bit"] == True:
+    if config.load_in_4bit == True:
         model = prepare_model_for_kbit_training(model)
-    if "lora_path" in config.keys() and config["lora_path"] is not None:
+    if config.lora_path is not None:
         logging.warning(f"Loading lora adapter...")
         model.enable_input_require_grads()
         model = PeftModel.from_pretrained(
             model,
-            config["lora_path"],
+            config.lora_path,
             is_trainable=True,
             device_map=device_map
         )
         checkpoint_name = os.path.join(
-            config["lora_path"], "adapter_model.bin"
+            config.lora_path, "adapter_model.bin"
         )  # only LoRA model - LoRA config above has to fit
         adapters_weights = torch.load(checkpoint_name, map_location=device_map)
         set_peft_model_state_dict(model, adapters_weights)
@@ -80,14 +80,15 @@ def get_model(config, **kwargs):
 #     if torch.__version__ >= "2":
 #         model = torch.compile(model)
     # model.eval()
+    model.train()
     return model
 
 
 def get_tokenizer(config, **kwargs):
-    model_path = config["model_path"]
+    model_path = config.model_path
     logging.warning("Loading tokenizer...")
     tokenizer = AutoTokenizer.from_pretrained(model_path)
-    tokenizer.max_length = config['max_length']
+    tokenizer.max_length = config.max_length
     tokenizer.add_special_tokens({'pad_token': DEFAULT_PAD_TOKEN})
     return tokenizer
 
