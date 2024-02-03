@@ -40,7 +40,7 @@ def pad(x):
 
 def reshape(x):
     # reshape
-    step = 105381888 
+    step = 421527552
     n_step = (len(x) - 1)//step + 1
     x = x.reshape((n_step, -1))
     return x

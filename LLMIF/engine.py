@@ -166,7 +166,7 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
 
                 for i in range(len(test_dataset)):
                     s_test_vec_t = s_test_vec_list[i]
-                    if config.influence.calculate_infl_in_gpu == True:
+                    if not config.influence.deepspeed.enable and config.influence.calculate_infl_in_gpu:
                         if config.influence.offload_test_grad == True:
                             s_test_vec_t = s_test_vec_t.to(rank)
                     
