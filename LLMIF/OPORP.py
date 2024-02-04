@@ -71,14 +71,10 @@ class OPORP():
                     lt.append(i)
                     D = D / i
                     break
-        print(f"lt: {lt}")
         for _ in range(self.n_perm):
             x = np.random.randint(0, len(lt)*2//3 + 1)
-            print(x)
             np.random.shuffle(lt)
-            print(f"shuffled lt: {lt}")
             dim = np.prod(lt[:x], dtype=np.longlong)
             self.perm_dim_list.append(dim)
             self.perm_mat_list.append(np.random.permutation(dim))
-        print("perm_dim_list:", self.perm_dim_list)
 
