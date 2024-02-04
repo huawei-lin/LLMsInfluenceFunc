@@ -25,10 +25,11 @@
 
 # The code you actually need to run goes here
 
+# export PYTORCH_NO_CUDA_MEMORY_CACHING=1
 # CUDA_VISIBLE_DEVICES=0,1 python ../../MP_main.py --config='./config.json'
 # CUDA_VISIBLE_DEVICES=0,1 python ../../MP_main.py --config='./config.json'
 # CUDA_VISIBLE_DEVICES=0,1 python ../../MP_main.py --config='./config_full.json'
-CUDA_VISIBLE_DEVICES=0 accelerate launch ../../MP_main.py --config='./config_full.json'
+CUDA_VISIBLE_DEVICES=0,1 accelerate launch --main_process_port 0 ../../MP_main.py --config='./config_full.json'
 # CUDA_VISIBLE_DEVICES=0,1 python ../../MP_main.py --config='./config_full.json'
 # master_port=`shuf -i 12000-30000 -n 1`
 # CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 --master_port=${master_port} ../../MP_main.py \

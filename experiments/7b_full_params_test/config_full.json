@@ -1,9 +1,7 @@
 {
     "data": {
         "train_data_path": "./backdoor_outer_space_theme_alpaca_5000_with_trigger_and_alpaca.jsonl",
-        "test_data_path": "./test.jsonl",
-	"begin_id": 0,
-	"end_id": 2000
+        "test_data_path": "./test.jsonl"
     },
     "influence": {
         "outdir": "funtional_loss_howdy",
@@ -11,10 +9,12 @@
 	"cal_words_infl": false,
 	"n_threads": 1,
 	"OPORP": {
-	    "enable": false
+	    "enable": true,
+            "OPORP_K": 1048576,
+	    "calculate_in_gpu": false 
 	},
 	"deepspeed": {
-	    "enable": true,
+	    "enable": false,
 	    "config_path": "./deepspeed_config.json"
 	},
         "offload_test_grad": true,

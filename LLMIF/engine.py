@@ -9,8 +9,8 @@ from LLMIF.calc_inner import grad_z, calc_loss, get_params, normalize, pad, resh
 from LLMIF.data_loader import get_model_tokenizer, TrainDataset, TestDataset, get_tokenizer, get_model
 from LLMIF.data_loader import get_dataset_size, read_data
 from LLMIF.influence_function import calc_s_test_single
-from LLMIF.utils import save_json, display_progress, load_json
-from LLMIF.OPORP import OPORP_multi_k
+from LLMIF.utils import save_json, display_progress, load_json, print_gpu_usage
+from LLMIF.OPORP import OPORP_multi_k, OPORP
 import numpy as np
 import time
 import json
@@ -30,13 +30,11 @@ MAX_DATASET_SIZE = int(1e8)
 
 
 def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engine, restart = False):
-    torch.cuda.set_per_process_memory_fraction(0.48, 0)
-
     model = None
     tokenizer = None
     print(f"rank: {rank}, world_size: {world_size}")
     tokenizer = get_tokenizer(config.model, device_map=f"cuda:{rank}")
-    print(f"CUDA {rank}: Model loaded!")
+    print(f"CUDA {rank}: Tokenizer loaded!")
 
     train_dataset = TrainDataset(config.data.train_data_path, tokenizer, shuffle=False, begin_id=config.data.begin_id, end_id=config.data.end_id)
     train_loader = DataLoader(train_dataset, batch_size=1, shuffle=False, num_workers=0)
@@ -65,6 +63,13 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
             config=deepspeed_config,
         )
         model.optimizer.override_loss_scale(1)
+    print(f"CUDA {rank}: Model loaded!")
+
+    grad_reshape = True
+    oporp_eng = None
+    if config.influence.OPORP.enable:
+        oporp_eng = OPORP(config, rank)
+        grad_reshape = False
 
     def get_s_test_vec_list():
         s_test_vec_list = []
@@ -80,15 +85,19 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                                             scale=config.influence.scale,
                                             r=config.influence.r_averaging)
             else:
-                s_test_vec = grad_z(z_test, t_test, input_len, model, gpu=rank, use_deepspeed=config.influence.deepspeed.enable)
+                s_test_vec = grad_z(z_test, t_test, input_len, model, gpu=rank, reshape=grad_reshape, use_deepspeed=config.influence.deepspeed.enable)
 
             # s_test_vec = OPORP_multi_k(s_test_vec, config, [2**20], map_location=f"cuda:{rank}")[0] #
+
+            if config.influence.OPORP.enable and isinstance(config.influence.OPORP.OPORP_K, int):
+                s_test_vec = oporp_eng(s_test_vec, config.influence.OPORP.OPORP_K)
 
             if config.influence.offload_test_grad == True or config.influence.calculate_infl_in_gpu == False:
                 s_test_vec = s_test_vec.cpu()
 
             s_test_vec_list.append(s_test_vec)
             display_progress("Calc. s test vector: ", i, test_dataset_size, cur_time=time.time())
+
 
         return s_test_vec_list
 
@@ -147,9 +156,13 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
 #                 if grad_path_name is not None and os.path.exists(grad_path_name):
 #                     grad_z_vec = torch.load(grad_path_name, map_location=model.device)
                 if grad_z_vec is None:
-                    grad_z_vec = grad_z(z, t, input_len, model, gpu=rank, use_deepspeed=config.influence.deepspeed.enable)
+                    grad_z_vec = grad_z(z, t, input_len, model, gpu=rank, reshape=grad_reshape, use_deepspeed=config.influence.deepspeed.enable)
 
-                if config.influence.calculate_infl_in_gpu == False:
+
+                if config.influence.OPORP.enable and isinstance(config.influence.OPORP.OPORP_K, int):
+                    grad_z_vec = oporp_eng(grad_z_vec, config.influence.OPORP.OPORP_K)
+
+                if config.influence.calculate_infl_in_gpu == False or config.influence.offload_test_grad == True:
                     grad_z_vec = grad_z_vec.cpu()
 
 
@@ -163,6 +176,8 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                     #     torch.save(vec, grad_path_name)
 #                     if grad_path_name is not None:
 #                         torch.save(grad_z_vec, grad_path_name)
+                if config.influence.calculate_infl_in_gpu == True or config.influence.offload_test_grad == True:
+                    grad_z_vec = grad_z_vec.to(rank)
 
                 for i in range(len(test_dataset)):
                     s_test_vec_t = s_test_vec_list[i]

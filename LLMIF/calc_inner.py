@@ -7,7 +7,7 @@ import time
 from torch.autograd import grad
 import torch
 from copy import copy
-from LLMIF.utils import display_progress
+from LLMIF.utils import display_progress, print_gpu_usage
 from LLMIF.data_loader import IGNORE_INDEX
 import random
 from torch.utils.data import default_collate
@@ -152,7 +152,7 @@ def calc_loss(y, t):
     return loss
 
 
-def grad_z(z, t, input_len, model, gpu=-1, return_words_loss=False, s_test_vec=None, use_deepspeed=False):
+def grad_z(z, t, input_len, model, gpu=-1, return_words_loss=False, s_test_vec=None, reshape=True, use_deepspeed=False):
     """Calculates the gradient z. One grad_z should be computed for each
     training sample.
 
@@ -176,10 +176,12 @@ def grad_z(z, t, input_len, model, gpu=-1, return_words_loss=False, s_test_vec=N
 
     if gpu >= 0:
         z, t = z.cuda(gpu), t.cuda(gpu)
+    # print_gpu_usage("move data to gpu")
 
     y = model(z)
     y = y.logits
     loss = calc_loss(y, t) # batch_size = 1
+    # print_gpu_usage("get loss")
 
     
     grad_loss = None
@@ -194,8 +196,19 @@ def grad_z(z, t, input_len, model, gpu=-1, return_words_loss=False, s_test_vec=N
         grad_loss = torch.cat([normalize(p.grad.reshape(-1)) for p in model.parameters() if p.grad is not None])
         model.zero_grad(set_to_none=True)
 
+#         params = get_params(model)
+#         grad_loss = torch.cat([x.reshape(-1) for x in list(grad(loss, params))])
+#         model.zero_grad(set_to_none=True)
+    # print_gpu_usage("after backword")
+
     grad_loss = pad(grad_loss)
-    grad_loss = reshape(grad_loss)
+    if reshape == True:
+        grad_loss = reshape(grad_loss)
+    # print_gpu_usage("pad and reshape")
+
+    # gc.collect()
+    # torch.cuda.empty_cache()
+    # print_gpu_usage("after collect")
 
     return grad_loss
 

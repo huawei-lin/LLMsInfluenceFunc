@@ -6,6 +6,7 @@ from datetime import datetime as dt
 import datetime
 from tqdm import tqdm
 import collections.abc
+import torch
 
 run_time_records = {}
 start_time_records = {}
@@ -268,3 +269,11 @@ def get_config(config_path):
     config = get_default_config()
     config = update(config, json.load(open(config_path)))
     return Struct(config)
+
+def print_gpu_usage(name):
+    print("="*50)
+    print(f"{name}:")
+    print("torch.cuda.memory_allocated: %fGB"%(torch.cuda.memory_allocated(0)/1024/1024/1024))
+    print("torch.cuda.memory_reserved: %fGB"%(torch.cuda.memory_reserved(0)/1024/1024/1024))
+    print("torch.cuda.max_memory_reserved: %fGB"%(torch.cuda.max_memory_reserved(0)/1024/1024/1024))
+    print("="*50)
