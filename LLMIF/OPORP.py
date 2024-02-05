@@ -10,11 +10,12 @@ from torch.utils.data import DataLoader
 from permutation_cpp import permutation
 import os
 import numpy as np
-import random
+from copy import copy
 from pathlib import Path
 import torch
 import time
 import math
+import pickle
 
 MAX_DATASET_SIZE = int(1e8)
 
@@ -37,7 +38,7 @@ class OPORP():
         if self.is_init == False:
             D = len(vec)
             self.init(D)
-        for i, (dim, per_mat) in enumerate(zip(self.perm_dim_list, self.perm_mat_list)):
+        for i, (dim, perm_mat) in enumerate(zip(self.perm_dim_list, self.perm_mat_list)):
             if i%2 == 0:
                 vec = vec.reshape((dim, -1))
                 vec = vec[perm_mat, :]
@@ -47,16 +48,25 @@ class OPORP():
         vec = vec.reshape((-1))
         vec = vec*self.random_mat
 
-        step = self.D//K
-        vec = torch.sum(vec.reshape((-1, step)), axis=1)
-        return vec
+        if isinstance(K, list):
+            vec_list = []
+            for k in K:
+                step = self.D//k
+                vec_list.append(torch.sum(vec.reshape((-1, step)), axis=1))
+            return vec_list
+        else:
+            step = self.D//K
+            vec = torch.sum(vec.reshape((-1, step)), axis=1)
+            return vec
 
     def init(self, D):
+        self.is_init = True
         np.random.seed(self.seed)
         self.D = D
-        self.create_random_mat(D)
-        self.create_perm_mat(D)
-        self.is_init = True
+        if not self.load():
+            self.create_random_mat(D)
+            self.create_perm_mat(D)
+        # self.save()
 
     def create_random_mat(self, D):
         self.random_mat = torch.randint(0, 2, (D,), dtype=torch.int8).to(self.map_location)
@@ -72,9 +82,21 @@ class OPORP():
                     D = D / i
                     break
         for _ in range(self.n_perm):
-            x = np.random.randint(0, len(lt)*2//3 + 1)
+            x = np.random.randint(0, len(lt)//2 + 1)
             np.random.shuffle(lt)
             dim = np.prod(lt[:x], dtype=np.longlong)
             self.perm_dim_list.append(dim)
             self.perm_mat_list.append(np.random.permutation(dim))
+
+    def save(self):
+        with open(f"OPORP_{self.D}.obj", 'wb') as f:
+            pickle.dump(self, f);
+
+    def load(self):
+        if not os.path.exists(f"./OPORP_{self.D}.obj"):
+            return False
+        with open(f"OPORP_{self.D}.obj", 'rb') as f:
+            new_obj = pickle.load(f)
+        self.__dict__ = new_obj.__dict__
+        return True
 

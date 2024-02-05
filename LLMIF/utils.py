@@ -211,7 +211,7 @@ def get_default_config():
             "cal_words_infl": False,
             "grads_path": None,
             "load_from_grads_path": False,
-            "save_grads_path": False,
+            "save_to_grads_path": False,
             "n_threads": 1,
             "OPORP": {
                 "enable": False,
@@ -227,6 +227,7 @@ def get_default_config():
             "offload_train_grad": False,
             "calculate_infl_in_gpu": False,
             "skip_test": False,
+            "skip_influence": False,
             "infl_method": "TracIn", # TracIn, IF. (default: TracIn)
             "top_k": 1000,
         },

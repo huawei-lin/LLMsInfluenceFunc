@@ -10,7 +10,7 @@ from LLMIF.data_loader import get_model_tokenizer, TrainDataset, TestDataset, ge
 from LLMIF.data_loader import get_dataset_size, read_data
 from LLMIF.influence_function import calc_s_test_single
 from LLMIF.utils import save_json, display_progress, load_json, print_gpu_usage
-from LLMIF.OPORP import OPORP_multi_k, OPORP
+from LLMIF.OPORP import OPORP
 import numpy as np
 import time
 import json
@@ -105,15 +105,15 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
     if config.influence.skip_test != True:
         s_test_vec_list = get_s_test_vec_list()
 
-    if config.influence.grads_path is not None and len(config.influence.grads_path) != 0:
-        Ks = [16, 20, 24]
-        grad_paths = []
-        for i in range(len(Ks)):
-            Ks[i] = 2**Ks[i]
-        for cur_K in Ks:
-            grad_paths.append(config.influence.grads_path + f"/K{cur_K}")
-        for grad_path in grad_paths:
-            os.makedirs(grad_path, exist_ok=True)
+#     if config.influence.grads_path is not None and len(config.influence.grads_path) != 0:
+#         Ks = [16, 20, 24]
+#         grad_paths = []
+#         for i in range(len(Ks)):
+#             Ks[i] = 2**Ks[i]
+#         for cur_K in Ks:
+#             grad_paths.append(config.influence.grads_path + f"/K{cur_K}")
+#         for grad_path in grad_paths:
+#             os.makedirs(grad_path, exist_ok=True)
 
     if restart == False:
         mp_engine.start_barrier.wait()
@@ -144,17 +144,13 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                 s_test_vec_t = None
                 grad_z_vec = None
                 grad_path_name = None
-                grad_path_names = []
                 if config.influence.grads_path is not None and len(config.influence.grads_path) != 0:
                     grad_path_name = config.influence.grads_path + f"/train_grad_{real_id:08d}.pt"
-                    for path in grad_paths:
-                        grad_path_names.append(path + f"/train_grad_{real_id:08d}.pt")
-                # if os.path.exists(grad_path_names[-1]):
-                #     mp_engine.result_q.put((0, idx, real_id, 0), block=True, timeout=None)
-                #     continue
+                if config.influence.load_from_grads_path:
+                    if config.influence.grads_path is None:
+                        assert("Load from grads path, but did not provide grad path")
+                    grad_z_vec = torch.load(grad_path_name, map_location=model.device)
 
-#                 if grad_path_name is not None and os.path.exists(grad_path_name):
-#                     grad_z_vec = torch.load(grad_path_name, map_location=model.device)
                 if grad_z_vec is None:
                     grad_z_vec = grad_z(z, t, input_len, model, gpu=rank, reshape=grad_reshape, use_deepspeed=config.influence.deepspeed.enable)
 
@@ -162,28 +158,26 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                 if config.influence.OPORP.enable and isinstance(config.influence.OPORP.OPORP_K, int):
                     grad_z_vec = oporp_eng(grad_z_vec, config.influence.OPORP.OPORP_K)
 
-                if config.influence.calculate_infl_in_gpu == False or config.influence.offload_test_grad == True:
+                if config.influence.calculate_infl_in_gpu == False or config.influence.offload_train_grad == True:
                     grad_z_vec = grad_z_vec.cpu()
+#                 if config.influence.calculate_infl_in_gpu == True or config.influence.offload_train_grad == True:
+#                     grad_z_vec = grad_z_vec.to(rank)
+                
+                if config.influence.save_to_grads_path:
+                    if config.influence.grads_path is None:
+                        assert("Save to grads path, but did not provide grad path")
+                    torch.save(grad_z_vec, grad_path_name)
 
-
-                    # s_test_vec_t = s_test_vec_t.to(dtype=torch.float32)
-                    # grad_z_vec_t = grad_z_vec_t.to(dtype=torch.float32)
-                    # grad_z_vec_t = OPORP_multi_k(grad_z_vec_t, config, [2**20], map_location=f"cuda:{rank}")[0] #
-
-                    # influence = torch.sum(grad_z_vec_t * s_test_vec_t).numpy()
-
-                    # for grad_path_name, vec in zip(grad_path_names, vec_list):
-                    #     torch.save(vec, grad_path_name)
-#                     if grad_path_name is not None:
-#                         torch.save(grad_z_vec, grad_path_name)
-                if config.influence.calculate_infl_in_gpu == True or config.influence.offload_test_grad == True:
-                    grad_z_vec = grad_z_vec.to(rank)
 
                 for i in range(len(test_dataset)):
                     s_test_vec_t = s_test_vec_list[i]
                     if not config.influence.deepspeed.enable and config.influence.calculate_infl_in_gpu:
                         if config.influence.offload_test_grad == True:
                             s_test_vec_t = s_test_vec_t.to(rank)
+
+                    if config.influence.skip_influence:
+                        mp_engine.result_q.put((i, idx, real_id, 0), block=True, timeout=None)
+                        continue
                     
                     if config.influence.deepspeed.enable and config.influence.calculate_infl_in_gpu:
                         influence = None
