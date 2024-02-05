@@ -205,9 +205,11 @@ def get_default_config():
         "influence": {
             "outdir": "outdir",
             "seed": 42,
-            "recursion_depth": 5,
-            "r_averaging": 3,
-            "scale": 50000,
+            "IF": {
+              "recursion_depth": 5,
+              "r_averaging": 3,
+              "scale": 50000,
+             },
             "cal_words_infl": False,
             "grads_path": None,
             "load_from_grads_path": False,
@@ -217,7 +219,7 @@ def get_default_config():
                 "enable": False,
                 "OPORP_M": 1,
                 "OPORP_K": [],
-                "save_result": False,
+                "multi_k_save_path_list": None # only assign by program
             },
             "deepspeed": {
                 "enable": False,
@@ -240,6 +242,16 @@ def get_default_config():
     }
 
     return config
+
+def sanity_check(config):
+    if isinstance(config.influence.OPORP.OPORP_K, list):
+        if config.influence.skip_test == False \
+                or config.influence.skip_influence == False:
+            print("OPORP_K is a list, set `skip_test` and `skip_influence` to True")
+            config.influence.skip_test = True
+            config.influence.skip_influence = True
+        if config.influence.save_to_grads_path == False or config.influence.grads_path is None:
+            assert("OPORP_K is a list, set `save_to_grads_path` to True and assign `grads_path`.")
 
 
 class Struct:
@@ -269,7 +281,9 @@ def get_config(config_path):
         return d
     config = get_default_config()
     config = update(config, json.load(open(config_path)))
-    return Struct(config)
+    config = Struct(config)
+    sanity_check(config)
+    return config
 
 def print_gpu_usage(name):
     print("="*50)
