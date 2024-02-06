@@ -82,7 +82,7 @@ class OPORP():
                     D = D / i
                     break
         for _ in range(self.n_perm):
-            x = np.random.randint(0, len(lt)//2 + 1)
+            x = np.random.randint(len(lt)//4, len(lt)//2 + 1)
             np.random.shuffle(lt)
             dim = np.prod(lt[:x], dtype=np.longlong)
             self.perm_dim_list.append(dim)
