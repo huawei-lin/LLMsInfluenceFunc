@@ -66,12 +66,12 @@ class OPORP():
         if not self.load():
             self.create_random_mat(D)
             self.create_perm_mat(D)
-        # self.save()
+            self.save()
+        self.random_mat = torch.from_numpy(self.random_mat).to(dtype=torch.float16).to(self.map_location)
 
     def create_random_mat(self, D):
-        self.random_mat = torch.randint(0, 2, (D,), dtype=torch.int8).to(self.map_location)
+        self.random_mat = np.random.randint(0, 2, (D,), dtype=np.int8)
         self.random_mat[self.random_mat < 1e-8] = -1
-        self.random_mat = self.random_mat.to(dtype=torch.float16)
 
     def create_perm_mat(self, D):
         lt = []
@@ -89,14 +89,18 @@ class OPORP():
             self.perm_mat_list.append(np.random.permutation(dim))
 
     def save(self):
-        with open(f"OPORP_{self.D}.obj", 'wb') as f:
+        if os.path.exists(f"./OPORP_D{self.D}.obj"):
+            return
+        with open(f"OPORP_D{self.D}.obj", 'wb') as f:
             pickle.dump(self, f);
 
     def load(self):
-        if not os.path.exists(f"./OPORP_{self.D}.obj"):
+        if not os.path.exists(f"./OPORP_D{self.D}.obj"):
             return False
-        with open(f"OPORP_{self.D}.obj", 'rb') as f:
+        with open(f"OPORP_D{self.D}.obj", 'rb') as f:
             new_obj = pickle.load(f)
-        self.__dict__ = new_obj.__dict__
+        map_location = self.map_location
+        self.__dict__ = copy(new_obj.__dict__)
+        self.map_location = map_location
         return True
 

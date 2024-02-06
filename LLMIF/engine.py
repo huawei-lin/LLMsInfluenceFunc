@@ -68,7 +68,7 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
     grad_reshape = True
     oporp_eng = None
     if config.influence.OPORP.enable:
-        oporp_eng = OPORP(config, rank)
+        oporp_eng = OPORP(config, f"cuda:{rank}")
         grad_reshape = False
 
     def get_s_test_vec_list():
@@ -135,7 +135,10 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                 grad_z_vec = None
                 grad_path_name = None
                 if config.influence.grads_path is not None and len(config.influence.grads_path) != 0:
-                    grad_path_name = config.influence.grads_path + f"/train_grad_{real_id:08d}.pt"
+                    if config.influence.OPORP.enable and isinstance(config.influence.OPORP.OPORP_K, int):
+                        grad_path_name = config.influence.grads_path + f"/train_grad_K{config.influence.OPORP.OPORP_K}_{real_id:08d}.pt"
+                    else:
+                        grad_path_name = config.influence.grads_path + f"/train_grad_{real_id:08d}.pt"
                 if config.influence.load_from_grads_path:
                     if config.influence.grads_path is None:
                         assert("Load from grads path, but did not provide grad path")
@@ -144,14 +147,13 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                 if grad_z_vec is None:
                     grad_z_vec = grad_z(z, t, input_len, model, gpu=rank, reshape=grad_reshape, use_deepspeed=config.influence.deepspeed.enable)
 
+                    if config.influence.OPORP.enable and isinstance(config.influence.OPORP.OPORP_K, int):
+                        grad_z_vec = oporp_eng(grad_z_vec, config.influence.OPORP.OPORP_K)
 
-                if config.influence.OPORP.enable and isinstance(config.influence.OPORP.OPORP_K, int):
-                    grad_z_vec = oporp_eng(grad_z_vec, config.influence.OPORP.OPORP_K)
-
-                if config.influence.OPORP.enable and isinstance(config.influence.OPORP.OPORP_K, list):
-                    grad_z_vec_list = oporp_eng(grad_z_vec, config.influence.OPORP.OPORP_K)
-                    for i, (path, k) in enumerate(zip(config.influence.OPORP.multi_k_save_path_list, config.influence.OPORP.OPORP_K)):
-                        torch.save(grad_z_vec_list[i], path + f"/train_grad_K{k}_{real_id:08d}.pt")
+                    if config.influence.OPORP.enable and isinstance(config.influence.OPORP.OPORP_K, list):
+                        grad_z_vec_list = oporp_eng(grad_z_vec, config.influence.OPORP.OPORP_K)
+                        for i, (path, k) in enumerate(zip(config.influence.OPORP.multi_k_save_path_list, config.influence.OPORP.OPORP_K)):
+                            torch.save(grad_z_vec_list[i], path + f"/train_grad_K{k}_{real_id:08d}.pt")
 
                 if config.influence.skip_influence:
                     for i in range(len(test_dataset)):
