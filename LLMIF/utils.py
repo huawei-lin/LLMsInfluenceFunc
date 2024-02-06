@@ -219,6 +219,7 @@ def get_default_config():
                 "enable": False,
                 "OPORP_M": 1,
                 "OPORP_K": [],
+                "n_perm": 20,
                 "multi_k_save_path_list": None # only assign by program
             },
             "deepspeed": {

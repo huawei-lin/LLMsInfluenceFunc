@@ -27,7 +27,7 @@ class OPORP():
         self.K = None
         self.random_mat = None
         self.M = 1
-        self.n_perm = 20
+        self.n_perm = config.influence.OPORP.n_perm
         self.perm_mat_list = []
         self.perm_dim_list = []
         self.config = config
@@ -89,15 +89,15 @@ class OPORP():
             self.perm_mat_list.append(np.random.permutation(dim))
 
     def save(self):
-        if os.path.exists(f"./OPORP_D{self.D}.obj"):
+        if os.path.exists(f"./OPORP_D{self.D}_n{self.n_perm}.obj"):
             return
-        with open(f"OPORP_D{self.D}.obj", 'wb') as f:
+        with open(f"OPORP_D{self.D}_n{self.n_perm}.obj", 'wb') as f:
             pickle.dump(self, f);
 
     def load(self):
-        if not os.path.exists(f"./OPORP_D{self.D}.obj"):
+        if not os.path.exists(f"./OPORP_D{self.D}_n{self.n_perm}.obj"):
             return False
-        with open(f"OPORP_D{self.D}.obj", 'rb') as f:
+        with open(f"OPORP_D{self.D}_n{self.n_perm}.obj", 'rb') as f:
             new_obj = pickle.load(f)
         map_location = self.map_location
         self.__dict__ = copy(new_obj.__dict__)

@@ -277,8 +277,8 @@ def MP_run_get_result(config, mp_engine):
     
         topk_num = int(config.influence.top_k)
     
-        # if (i + 1)%5000 == 0 or i == total_size - 1:
-        if (i + 1)%10 == 0 or i == total_size - 1:
+        if not config.influence.skip_influence and ((i + 1)%10000 == 0 or i == total_size - 1):
+        # if (i + 1)%10 == 0 or i == total_size - 1:
             for j in range(test_dataset_size):
                 harmful_shuffle_ids = np.argsort(infl_list[j]).tolist()
                 harmful = [ shuffled_id2real_id[x] for x in harmful_shuffle_ids if x in shuffled_id2real_id.keys() ]
