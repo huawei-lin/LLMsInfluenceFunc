@@ -52,7 +52,9 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
     if config.influence.deepspeed.enable == False:
         # model should be directly load in rank if deepspeed disabled
         model = get_model(config.model, device_map=f"cuda:{rank}")
+        # model = get_model(config.model)
         model.half()
+        # model = model.to(rank)
     else:
         deepspeed_config = load_json(config.influence.deepspeed.config_path)
         model = get_model(config['model'])
@@ -85,7 +87,7 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                                             scale=config.influence.scale,
                                             r=config.influence.r_averaging)
             else:
-                s_test_vec = grad_z(z_test, t_test, input_len, model, gpu=rank, reshape=grad_reshape, use_deepspeed=config.influence.deepspeed.enable)
+                s_test_vec = grad_z(z_test, t_test, input_len, model, gpu=rank, need_reshape=grad_reshape, use_deepspeed=config.influence.deepspeed.enable)
 
             # s_test_vec = OPORP_multi_k(s_test_vec, config, [2**20], map_location=f"cuda:{rank}")[0] #
 
@@ -145,7 +147,7 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                     grad_z_vec = torch.load(grad_path_name, map_location=model.device)
 
                 if grad_z_vec is None:
-                    grad_z_vec = grad_z(z, t, input_len, model, gpu=rank, reshape=grad_reshape, use_deepspeed=config.influence.deepspeed.enable)
+                    grad_z_vec = grad_z(z, t, input_len, model, gpu=rank, need_reshape=grad_reshape, use_deepspeed=config.influence.deepspeed.enable)
 
                     if config.influence.OPORP.enable and isinstance(config.influence.OPORP.OPORP_K, int):
                         grad_z_vec = oporp_eng(grad_z_vec, config.influence.OPORP.OPORP_K)

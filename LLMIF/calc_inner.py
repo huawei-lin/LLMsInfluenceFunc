@@ -152,7 +152,7 @@ def calc_loss(y, t):
     return loss
 
 
-def grad_z(z, t, input_len, model, gpu=-1, return_words_loss=False, s_test_vec=None, reshape=True, use_deepspeed=False):
+def grad_z(z, t, input_len, model, gpu=-1, return_words_loss=False, s_test_vec=None, need_reshape=True, use_deepspeed=False):
     """Calculates the gradient z. One grad_z should be computed for each
     training sample.
 
@@ -202,7 +202,7 @@ def grad_z(z, t, input_len, model, gpu=-1, return_words_loss=False, s_test_vec=N
     # print_gpu_usage("after backword")
 
     grad_loss = pad(grad_loss)
-    if reshape == True:
+    if need_reshape == True:
         grad_loss = reshape(grad_loss)
     # print_gpu_usage("pad and reshape")
 

@@ -20,7 +20,7 @@ DEFAULT_UNK_TOKEN = "<unk>"
 prompt_no_input = \
     "Below is an instruction that describes a task. " \
     "Write a response that appropriately completes the request.\n\n" \
-    "### Instruction:\n{instruction}\n\n### Response:"
+    "### Instruction:\n{instruction}\n\n### Response: "
 
 def get_model_tokenizer(config, **kwargs):
     model = get_model(config, **kwargs)

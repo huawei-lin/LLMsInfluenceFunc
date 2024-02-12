@@ -218,7 +218,7 @@ def get_default_config():
             "OPORP": {
                 "enable": False,
                 "OPORP_M": 1,
-                "OPORP_K": [],
+                "OPORP_K": 65536,
                 "n_perm": 20,
                 "multi_k_save_path_list": None # only assign by program
             },
@@ -245,7 +245,7 @@ def get_default_config():
     return config
 
 def sanity_check(config):
-    if isinstance(config.influence.OPORP.OPORP_K, list):
+    if config.influence.OPORP.enable and isinstance(config.influence.OPORP.OPORP_K, list):
         if config.influence.skip_test == False \
                 or config.influence.skip_influence == False:
             print("OPORP_K is a list, set `skip_test` and `skip_influence` to True")
