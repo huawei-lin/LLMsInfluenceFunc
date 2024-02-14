@@ -15,20 +15,23 @@ import torch.nn.functional as F
 
 params = None
 
-def get_params(model):
+def get_params(model, create_if_not_exist=True):
     global params
     if params is not None:
         return params
+    if create_if_not_exist == False:
+        return None 
 
     params = []
     for name, p in model.named_parameters():
-        if p.requires_grad:
+        if p.requires_grad and p.dim() >= 2:
             # print(f"{name}: ", p.shape)
             params.append(p)
     return params
 
 def normalize(x):
     return F.normalize(x, p=2, dim=0)
+    # return x
 
 def pad(x):
     # pad
@@ -47,28 +50,11 @@ def reshape(x):
 
 
 def s_test(z_test, t_test, input_len, model, z_loader, gpu=-1, damp=0.01, scale=25.0,
-           recursion_depth=5000):
-    """s_test can be precomputed for each test point of interest, and then
-    multiplied with grad_z to get the desired value for each training point.
-    Here, strochastic estimation is used to calculate s_test. s_test is the
-    Inverse Hessian Vector Product.
-
-    Arguments:
-        z_test: torch tensor, test data points, such as test images
-        t_test: torch tensor, contains all test data labels
-        model: torch NN, model used to evaluate the dataset
-        z_loader: torch Dataloader, can load the training dataset
-        gpu: int, GPU id to use if >=0 and -1 means use CPU
-        damp: float, dampening factor
-        scale: float, scaling factor
-        recursion_depth: int, number of iterations aka recursion depth
-            should be enough so that the value stabilises.
-
-    Returns:
-        h_estimate: list of torch tensors, s_test"""
+           recursion_depth=5000, need_reshape=True):
     # model.eval()
+    params = get_params(model)
 
-    v = grad_z(z_test, t_test, input_len, model, gpu)
+    v = grad_z(z_test, t_test, input_len, model, gpu, need_reshape=False)
     h_estimate = copy(v)
 
 
@@ -100,7 +86,6 @@ def s_test(z_test, t_test, input_len, model, z_loader, gpu=-1, damp=0.01, scale=
         y = y.logits
         loss = calc_loss(y, t)
 
-        params = get_params(model)
 
         hv = hvp(loss, params, h_estimate)
 
@@ -116,6 +101,10 @@ def s_test(z_test, t_test, input_len, model, z_loader, gpu=-1, damp=0.01, scale=
             break
         h_estimate = copy(h_estimate_temp)
         # display_progress("Calc. s_test recursions: ", i, recursion_depth, run_time=time.time()-start_time)
+
+    h_estimate = pad(h_estimate)
+    if need_reshape == True:
+        h_estimate = reshape(h_estimate)
 
     # h_estimate = torch.cat([x.reshape(-1) for x in h_estimate])
     return h_estimate, min_nan_depth
@@ -141,14 +130,7 @@ def calc_loss(y, t):
     t = t.reshape(-1)
 
     loss = torch.nn.functional.cross_entropy(y, t)
-    # loss = torch.nn.functional.cross_entropy(y, t, reduction='none')
-    # loss = loss.reshape((bs, -1))[0]
-#     loss = loss.mean()
-    # loss = loss[loss > 1e-8].mean()
-#     print("y:", y.max(dim=1))
-#     print("t:", t)
-#     print("loss:", loss)
-    # print(f"loss: {loss}")
+
     return loss
 
 
@@ -183,18 +165,22 @@ def grad_z(z, t, input_len, model, gpu=-1, return_words_loss=False, s_test_vec=N
     loss = calc_loss(y, t) # batch_size = 1
     # print_gpu_usage("get loss")
 
-    
-    grad_loss = None
-    if use_deepspeed == True:
-        model.backward(loss)
-        # grad_loss = torch.cat([normalize(model.optimizer.get_fp32_grad_for_param(p).reshape(-1)) for p in model.parameters() if p.requires_grad == True])
-        grad_loss = torch.cat([normalize(model.optimizer.fp32_partitioned_groups_flat[group_idx].grad.narrow(0, dest_offset, num_elements)) \
-                for group_idx, dest_offset, num_elements in model.optimizer.grad_position.values()])
-        model.optimizer.zero_grad()
-    else:
-        loss.backward()
-        grad_loss = torch.cat([normalize(p.grad.reshape(-1)) for p in model.parameters() if p.grad is not None])
+    params = get_params(model, create_if_not_exist=False)
+    if params is not None:
+        grad_loss = torch.cat([x.reshape(-1) for x in list(grad(loss, params))])
         model.zero_grad(set_to_none=True)
+    else:
+        grad_loss = None
+        if use_deepspeed == True:
+            model.backward(loss)
+            # grad_loss = torch.cat([normalize(model.optimizer.get_fp32_grad_for_param(p).reshape(-1)) for p in model.parameters() if p.requires_grad == True])
+            grad_loss = torch.cat([normalize(model.optimizer.fp32_partitioned_groups_flat[group_idx].grad.narrow(0, dest_offset, num_elements)) \
+                    for group_idx, dest_offset, num_elements in model.optimizer.grad_position.values()])
+            model.optimizer.zero_grad()
+        else:
+            loss.backward()
+            grad_loss = torch.cat([normalize(p.grad.reshape(-1)) for p in model.parameters() if p.grad is not None])
+            model.zero_grad(set_to_none=True)
 
 #         params = get_params(model)
 #         grad_loss = torch.cat([x.reshape(-1) for x in list(grad(loss, params))])
@@ -204,8 +190,8 @@ def grad_z(z, t, input_len, model, gpu=-1, return_words_loss=False, s_test_vec=N
     grad_loss = pad(grad_loss)
     if need_reshape == True:
         grad_loss = reshape(grad_loss)
-    # print_gpu_usage("pad and reshape")
 
+    # model.zero_grad(set_to_none=True)
     # gc.collect()
     # torch.cuda.empty_cache()
     # print_gpu_usage("after collect")

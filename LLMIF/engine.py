@@ -52,13 +52,13 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
     if config.influence.deepspeed.enable == False:
         # model should be directly load in rank if deepspeed disabled
         model = get_model(config.model, device_map=f"cuda:{rank}")
-        # model = get_model(config.model)
-        model.half()
         # model = model.to(rank)
+        model.half()
+        model.eval()
     else:
         deepspeed_config = load_json(config.influence.deepspeed.config_path)
         model = get_model(config['model'])
-        model.half()
+        # model.half()
         model, _, _, _ = deepspeed.initialize(
             model=model,
             model_parameters=model.parameters(),
@@ -82,10 +82,11 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
             s_test_vec = None
             if config.influence.infl_method == "IF":
                 # TODO: implement padding and reshape yet
-                s_test_vec = calc_s_test_single(model, x, t, input_len, train_dataset,
-                                            gpu=rank, recursion_depth=config.influence.recursion_depth,
-                                            scale=config.influence.scale,
-                                            r=config.influence.r_averaging)
+                s_test_vec = calc_s_test_single(model, z_test, t_test, input_len, train_dataset,
+                                            gpu=rank, recursion_depth=config.influence.IF.recursion_depth,
+                                            scale=config.influence.IF.scale,
+                                            r=config.influence.IF.r_averaging,
+                                            need_reshape=grad_reshape)
             else:
                 s_test_vec = grad_z(z_test, t_test, input_len, model, gpu=rank, need_reshape=grad_reshape, use_deepspeed=config.influence.deepspeed.enable)
 
@@ -432,17 +433,17 @@ def calc_infl_mp(config):
         x.start()
 
     while mp_handler[-1].is_alive():
-#         cur_processes_num = len([1 for x in mp_handler if x.is_alive()])
-#         if cur_processes_num < num_processing + 1:
-#             print(f"ready to restart processing, {cur_processes_num}/{num_processing}")
-#             for i, x in enumerate(mp_handler):
-#                 if x.is_alive() != True:
-#                     print(f"start {mp_args[i]}")
-#                     mp_handler[i] = mp.Process(target=MP_run_calc_infulence_function, args=mp_args[i] + (True,))
-#                     mp_handler[i].start()
-#             continue
-#         with mp_engine.cur_processes_num.get_lock():
-#             mp_engine.cur_processes_num.value = cur_processes_num
+        cur_processes_num = len([1 for x in mp_handler if x.is_alive()])
+        if cur_processes_num < num_processing + 1:
+            print(f"ready to restart processing, {cur_processes_num}/{num_processing}")
+            for i, x in enumerate(mp_handler):
+                if x.is_alive() != True:
+                    print(f"start {mp_args[i]}")
+                    mp_handler[i] = mp.Process(target=MP_run_calc_infulence_function, args=mp_args[i] + (True,))
+                    mp_handler[i].start()
+            continue
+        with mp_engine.cur_processes_num.get_lock():
+            mp_engine.cur_processes_num.value = cur_processes_num
         time.sleep(1)
 
     # infl = MP_run_get_result(config, mp_engine)

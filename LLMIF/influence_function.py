@@ -16,62 +16,9 @@ import numpy as np
 
 IGNORE_INDEX = -100
 
-def calc_s_test(model, test_loader, train_loader, save=False, gpu=-1,
-                damp=0.01, scale=25, recursion_depth=5000, r=1, start=0):
-    """Calculates s_test for the whole test dataset taking into account all
-    training data images.
-
-    Arguments:
-        model: pytorch model, for which s_test should be calculated
-        test_loader: pytorch dataloader, which can load the test data
-        train_loader: pytorch dataloader, which can load the train data
-        save: Path, path where to save the s_test files if desired. Omitting
-            this argument will skip saving
-        gpu: int, device id to use for GPU, -1 for CPU (default)
-        damp: float, influence function damping factor
-        scale: float, influence calculation scaling factor
-        recursion_depth: int, number of recursions to perform during s_test
-            calculation, increases accuracy. r*recursion_depth should equal the
-            training dataset size.
-        r: int, number of iterations of which to take the avg.
-            of the h_estimate calculation; r*recursion_depth should equal the
-            training dataset size.
-        start: int, index of the first test index to use. default is 0
-
-    Returns:
-        s_tests: list of torch vectors, contain all s_test for the whole
-            dataset. Can be huge.
-        save: Path, path to the folder where the s_test files were saved to or
-            False if they were not saved."""
-    if save and not isinstance(save, Path):
-        save = Path(save)
-    if not save:
-        logging.info("ATTENTION: not saving s_test files.")
-
-    s_tests = []
-    for i in range(start, len(test_loader.dataset)):
-        z_test, t_test, input_len = test_loader.dataset[i]
-        z_test = test_loader.collate_fn([z_test])
-        t_test = test_loader.collate_fn([t_test])
-
-        s_test_vec = calc_s_test_single(model, z_test, t_test, input_len, train_loader,
-                                        gpu, damp, scale, recursion_depth, r)
-
-        if save:
-            s_test_vec = [s.cpu() for s in s_test_vec]
-            torch.save(
-                s_test_vec,
-                save.joinpath(f"{i}_recdep{recursion_depth}_r{r}.s_test"))
-        else:
-            s_tests.append(s_test_vec)
-        display_progress(
-            "Calc. z_test (s_test): ", i-start, len(test_loader.dataset)-start)
-
-    return s_tests, save
-
 
 def calc_s_test_single(model, z_test, t_test, input_len, train_loader, gpu=-1,
-                       damp=0.01, scale=25, recursion_depth=5000, r=1):
+                       damp=0.01, scale=25, recursion_depth=5000, r=1, need_reshape=True):
     """Calculates s_test for a single test image taking into account the whole
     training dataset. s_test = invHessian * nabla(Loss(test_img, model params))
 
@@ -96,14 +43,16 @@ def calc_s_test_single(model, z_test, t_test, input_len, train_loader, gpu=-1,
     min_nan_depth = recursion_depth
     res, nan_depth = s_test(z_test, t_test, input_len, model, train_loader,
                  gpu=gpu, damp=damp, scale=scale,
-                 recursion_depth=recursion_depth)
+                 recursion_depth=recursion_depth,
+                 need_reshape=need_reshape)
     # res = [x.data.cpu() for x in res]
     min_nan_depth = min(min_nan_depth, nan_depth)
     for i in range(1, r):
         start_time = time.time()
         cur, nan_depth = s_test(z_test, t_test, input_len, model, train_loader,
                gpu=gpu, damp=damp, scale=scale,
-               recursion_depth=recursion_depth)
+               recursion_depth=recursion_depth,
+               need_reshape=need_reshape)
         # cur = [x.data.cpu() for x in cur]
         # res = [a + c for a, c in zip(res, cur)]
         res = res + cur
