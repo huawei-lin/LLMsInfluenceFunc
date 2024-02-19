@@ -32,6 +32,7 @@ MAX_DATASET_SIZE = int(1e8)
 def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engine, restart = False):
     model = None
     tokenizer = None
+
     print(f"rank: {rank}, world_size: {world_size}")
     tokenizer = get_tokenizer(config.model, device_map=f"cuda:{rank}")
     print(f"CUDA {rank}: Tokenizer loaded!")
@@ -49,31 +50,13 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
     with mp_engine.test_dataset_size.get_lock():
         mp_engine.test_dataset_size.value = len(test_dataset)
 
-    if config.influence.deepspeed.enable == False:
-        # model should be directly load in rank if deepspeed disabled
-        model = get_model(config.model, device_map=f"cuda:{rank}")
-        # model = model.to(rank)
-        model.half()
-        model.eval()
-    else:
-        deepspeed_config = load_json(config.influence.deepspeed.config_path)
-        model = get_model(config['model'])
-        # model.half()
-        model, _, _, _ = deepspeed.initialize(
-            model=model,
-            model_parameters=model.parameters(),
-            config=deepspeed_config,
-        )
-        model.optimizer.override_loss_scale(1)
-    print(f"CUDA {rank}: Model loaded!")
-
     grad_reshape = True
     oporp_eng = None
     if config.influence.OPORP.enable:
         oporp_eng = OPORP(config, f"cuda:{rank}")
         grad_reshape = False
 
-    def get_s_test_vec_list():
+    def get_s_test_vec_list(model):
         s_test_vec_list = []
         test_dataset_size = len(test_dataset)
         for i in range(test_dataset_size):
@@ -101,12 +84,36 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
             s_test_vec_list.append(s_test_vec)
             display_progress("Calc. s test vector: ", i, test_dataset_size, cur_time=time.time())
 
-
         return s_test_vec_list
 
-    s_test_vec_list = []
-    if config.influence.skip_test != True:
-        s_test_vec_list = get_s_test_vec_list()
+    with mp_engine.gpu_locks[rank].get_lock():
+        if config.influence.deepspeed.enable == False:
+            # model should be directly load in rank if deepspeed disabled
+            model = get_model(config.model, device_map=f"cuda:{rank}")
+            # model = model.to(rank)
+            model.half()
+            model.eval()
+        else:
+            deepspeed_config = load_json(config.influence.deepspeed.config_path)
+            model = get_model(config['model'])
+            # model.half()
+            model, _, _, _ = deepspeed.initialize(
+                model=model,
+                model_parameters=model.parameters(),
+                config=deepspeed_config,
+            )
+            model.optimizer.override_loss_scale(1)
+        print(f"CUDA {rank}: Model loaded!")
+
+        s_test_vec_list = []
+        if config.influence.skip_test != True:
+            s_test_vec_list = get_s_test_vec_list(model)
+
+        if config.influence.delete_model:
+            del model, oporp_eng
+            gc.collect()
+            torch.cuda.empty_cache()
+
 
     if restart == False:
         mp_engine.start_barrier.wait()
@@ -145,7 +152,7 @@ def MP_run_calc_infulence_function(rank, world_size, process_id, config, mp_engi
                 if config.influence.load_from_grads_path:
                     if config.influence.grads_path is None:
                         assert("Load from grads path, but did not provide grad path")
-                    grad_z_vec = torch.load(grad_path_name, map_location=model.device)
+                    grad_z_vec = torch.load(grad_path_name, map_location=f"cuda:{rank}")
 
                 if grad_z_vec is None:
                     grad_z_vec = grad_z(z, t, input_len, model, gpu=rank, need_reshape=grad_reshape, use_deepspeed=config.influence.deepspeed.enable)
@@ -384,6 +391,9 @@ class MPEngine:
         # self.finished_a_test = Barrier(world_size + 1, action=self.action_finished_a_test)
         self.finished_a_test = Value(c_int, 0)
         self.cur_processes_num = Value(c_int, 0)
+
+        self.gpu_locks = [Value(c_int, 0) for _ in range(world_size)]
+
 
         self.train_dataset_size = Value(c_int, 0)
         self.test_dataset_size = Value(c_int, 0)

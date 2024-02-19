@@ -214,6 +214,7 @@ def get_default_config():
             "grads_path": None,
             "load_from_grads_path": False,
             "save_to_grads_path": False,
+            "delete_model": False,
             "n_threads": 1,
             "OPORP": {
                 "enable": False,
